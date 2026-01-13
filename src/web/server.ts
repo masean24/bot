@@ -4,6 +4,20 @@ import adminRoutes from "./routes/admin.js";
 import { PORT, BOT_NAME } from "../config.js";
 
 const app = express();
+const startTime = Date.now();
+
+// Helper function to format uptime
+function formatUptime(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ${hours % 24}h ${minutes % 60}m`;
+  if (hours > 0) return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
+  return `${seconds}s`;
+}
 
 // Middleware
 app.use(express.json());
@@ -18,6 +32,31 @@ app.use((req, res, next) => {
     return res.sendStatus(200);
   }
   next();
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  const uptime = Date.now() - startTime;
+  const memoryUsage = process.memoryUsage();
+
+  res.json({
+    status: "✅ Online",
+    bot_name: BOT_NAME,
+    uptime: formatUptime(uptime),
+    uptime_ms: uptime,
+    started_at: new Date(startTime).toISOString(),
+    memory: {
+      used: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`,
+      total: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`,
+    },
+    node_version: process.version,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Simple health check for Docker/Coolify
+app.get("/", (req, res) => {
+  res.send("OK");
 });
 
 // Routes
