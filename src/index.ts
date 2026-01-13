@@ -142,13 +142,13 @@ bot.command("status", async (ctx) => {
 
 ✅ Status: Online
 ⏱ Uptime: ${uptimeStr}
-🕐 Started: ${new Date(botStartTime).toLocaleString("id-ID")}
+🕐 Started: ${new Date(botStartTime).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}
 
 💾 Memory: ${usedMB}MB / ${totalMB}MB
 📦 Node: ${process.version}
 🖥 Platform: ${process.platform}
 
-📅 Current: ${new Date().toLocaleString("id-ID")}
+📅 Current: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })}
 `;
 
     await ctx.reply(statusMessage, { parse_mode: "Markdown" });
