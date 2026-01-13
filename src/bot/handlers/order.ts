@@ -651,16 +651,17 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
     const invoiceId = order.pakasir_order_id || `ORD${Date.now()}`;
 
     const successMessage = `
-┃ *PEMBAYARAN SUKSES*
-┃
-┃ Produk : ${product.name.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}
-┃ Jumlah : ${quantity}
-┃ Total : ${formatRupiah(finalPrice).replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}
-┃ Invoice : \`${invoiceId.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}\`
-┃
-┃ *DETAIL AKUN*
+╭━━━━━━━━━━━━━━━
+┊ *PEMBAYARAN SUKSES*
+┊━━━━━━━━━━━━━━━
+┊ Produk : ${product.name.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}
+┊ Jumlah : ${quantity}
+┊ Total : ${formatRupiah(finalPrice).replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}
+┊ Invoice : \`${invoiceId.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}\`
+┊━━━━━━━━━━━━━━━
+┊ *DETAIL AKUN*
 ${credentialsText}
-
+╰━━━━━━━━━━━━━━━
 _Note : Pastikan aplikasi terkait sudah versi terbaru\\._
 _Terima kasih telah berbelanja\\!_ 🙏
 `;
@@ -1005,16 +1006,17 @@ export async function processSuccessfulPayment(
     const invoiceId = order.pakasir_order_id || `ORD${Date.now()}`;
 
     const successMessage = `
-┃ *PEMBAYARAN SUKSES*
-┃
-┃ Produk : ${product.name.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}
-┃ Jumlah : ${order.quantity}
-┃ Total : ${formatRupiah(order.total_price).replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}
-┃ Invoice : \`${invoiceId.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}\`
-┃
-┃ *DETAIL AKUN*
+╭━━━━━━━━━━━━━━━
+┊ *PEMBAYARAN SUKSES*
+┊━━━━━━━━━━━━━━━
+┊ Produk : ${product.name.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}
+┊ Jumlah : ${order.quantity}
+┊ Total : ${formatRupiah(order.total_price).replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}
+┊ Invoice : \`${invoiceId.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&")}\`
+┊━━━━━━━━━━━━━━━
+┊ *DETAIL AKUN*
 ${credentialsText}
-
+╰━━━━━━━━━━━━━━━
 _Note : Pastikan aplikasi terkait sudah versi terbaru\\._
 _Terima kasih telah berbelanja\\!_ 🙏
 `;

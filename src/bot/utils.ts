@@ -144,17 +144,22 @@ export function formatCredential(credential: {
     pin: string | null;
     extra_info: string | null;
 }, index: number): string {
-    let text = `\`${credential.email}\` ${credential.password}`;
+    // Build credential string with pipe separators: email|password|pin|extra_info
+    let parts: string[] = [credential.email, credential.password];
 
     if (credential.pin && credential.pin !== "-") {
-        text += `|${credential.pin}`;
+        parts.push(credential.pin);
     }
 
     if (credential.extra_info && credential.extra_info !== "-") {
-        text += ` \\(${credential.extra_info.replace(/[()]/g, "\\$&")}\\)`;
+        parts.push(credential.extra_info);
     }
 
-    return text;
+    // Join with pipes and escape for MarkdownV2
+    const credentialLine = parts.join("|");
+    const escapedLine = escapeMarkdown(credentialLine);
+
+    return `┊ ${escapedLine}`;
 }
 
 /**

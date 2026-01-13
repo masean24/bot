@@ -1047,7 +1047,7 @@ app.get("/admin", (req, res) => {
     }
     
     // Init
-    if (API_KEY) checkAuth();
+    checkAuth();
   </script>
 </body>
 </html>
