@@ -1,0 +1,30 @@
+{
+    "name": "telegram-auto-order-bot",
+    "version": "1.0.0",
+    "description": "Telegram bot for auto ordering digital products with QRIS payment via Pakasir",
+    "main": "dist/index.js",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "db:push": "node scripts/setup-db.js"
+    },
+    "dependencies": {
+        "@supabase/supabase-js": "^2.39.0",
+        "axios": "^1.6.2",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "grammy": "^1.21.1",
+        "jsonwebtoken": "^9.0.3",
+        "qrcode": "^1.5.3",
+        "sharp": "^0.34.5"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/jsonwebtoken": "^9.0.10",
+        "@types/node": "^20.10.4",
+        "@types/qrcode": "^1.5.5",
+        "tsx": "^4.6.2",
+        "typescript": "^5.3.3"
+    }
+}

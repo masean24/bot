@@ -1,0 +1,619 @@
+import type { Context } from "grammy";
+import { Keyboard, InlineKeyboard, InputFile } from "grammy";
+import { ADMIN_IDS, WELCOME_BANNER_URL, BOT_NAME, TESTIMONY_CHANNEL_USERNAME, MAIN_CHANNEL_USERNAME, ADMIN_CONTACT_USERNAME } from "../../config.js";
+import {
+    mainMenuKeyboard,
+    formatRupiah,
+} from "../utils.js";
+import {
+    getActiveProducts,
+    getProductStock,
+    getOrderStats,
+    supabase,
+} from "../../services/supabase.js";
+
+/**
+ * Create reply keyboard for main menu with dynamic product buttons
+ */
+export async function createReplyKeyboard(productCount?: number): Promise<Keyboard> {
+    // Get product count if not provided
+    let count = productCount;
+    if (count === undefined) {
+        const products = await getActiveProducts();
+        count = products.length;
+    }
+
+    const keyboard = new Keyboard()
+        .text("List Produk").text("Cek Saldo").row();
+
+    // Add number buttons in rows of 10
+    if (count > 0) {
+        const buttonsPerRow = 10;
+        for (let i = 1; i <= count; i++) {
+            keyboard.text(`${i}`);
+            if (i % buttonsPerRow === 0 && i < count) {
+                keyboard.row();
+            }
+        }
+        keyboard.row();
+    }
+
+    keyboard.text("⟳ BANTUAN").resized().persistent();
+
+    return keyboard;
+}
+
+/**
+ * Handle /start command with referral link support
+ */
+export async function handleStart(ctx: Context): Promise<void> {
+    const user = ctx.from;
+    const firstName = user?.first_name || "Kak";
+    const username = user?.username || "anonymous";
+    const userId = user?.id || 0;
+
+    // Check for referral code in deep link (e.g. /start REF123ABC)
+    const startPayload = ctx.match as string | undefined;
+    if (startPayload && startPayload.startsWith("REF")) {
+        try {
+            const { getReferralByCode, getOrCreateReferral } = await import("../../services/referral.js");
+            const referral = await getReferralByCode(startPayload);
+
+            if (referral && referral.user_id !== userId) {
+                // Save referrer for this user (will be used when they order)
+                await supabase
+                    .from("orders")
+                    .update({ referrer_id: referral.user_id })
+                    .eq("telegram_user_id", userId)
+                    .eq("status", "pending");
+
+                console.log(`[REFERRAL] User ${userId} referred by ${referral.user_id}`);
+            }
+        } catch (e) {
+            console.error("Referral processing error:", e);
+        }
+    }
+
+    // Get or create user's own referral code
+    let userReferralCode = "";
+    try {
+        const { getOrCreateReferral } = await import("../../services/referral.js");
+        const userReferral = await getOrCreateReferral(userId, username);
+        userReferralCode = userReferral.referral_code;
+    } catch (e) {
+        console.error("Failed to get/create referral:", e);
+    }
+
+    // Debug logging
+    console.log(`[DEBUG] User ID: ${userId}, Banner URL: ${WELCOME_BANNER_URL || "(empty)"}`);
+    console.log(`[DEBUG] ADMIN_IDS: ${ADMIN_IDS.join(", ") || "(empty)"}`);
+
+    // Get bot stats
+    const stats = await getOrderStats();
+
+    // Get user's order count
+    const { count: userOrderCount } = await supabase
+        .from("orders")
+        .select("*", { count: "exact", head: true })
+        .eq("telegram_user_id", userId)
+        .eq("status", "paid");
+
+    // Get total users (unique telegram_user_ids)
+    const { data: uniqueUsers } = await supabase
+        .from("orders")
+        .select("telegram_user_id");
+    const totalUsers = new Set(uniqueUsers?.map(u => u.telegram_user_id)).size;
+
+    const currentDate = new Date().toLocaleString("id-ID", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
+
+    const botUsername = ctx.me?.username || "bot";
+    const referralLink = userReferralCode ? `https://t.me/${botUsername}?start=${userReferralCode}` : "";
+
+    const welcomeCaption = `Halo ${firstName}! 👋
+Selamat datang di ${BOT_NAME}
+${currentDate}
+
+📊 User Info :
+├ ID : ${userId}
+├ Username : @${username}
+├ Transaksi : ${userOrderCount || 0}x
+└ Status : Member
+
+📈 BOT Stats :
+├ Terjual : ${stats.paidOrders} pcs
+├ Total Transaksi : ${formatRupiah(stats.totalRevenue)}
+└ Total User : ${totalUsers}
+
+📢 Channel :
+├ Testimoni : ${TESTIMONY_CHANNEL_USERNAME || "-"}
+├ Official  : ${MAIN_CHANNEL_USERNAME || "-"}
+└ Admin     : ${ADMIN_CONTACT_USERNAME || "-"}
+
+📌 Shortcuts :
+├ /start - Mulai bot
+├ /produk - Cek produk
+└ /bantuan - Bantuan`;
+
+    // Get products for reply keyboard
+    const products = await getActiveProducts();
+    const replyKeyboard = await createReplyKeyboard(products.length);
+
+    // Send welcome with banner image and inline menu
+    if (WELCOME_BANNER_URL) {
+        try {
+            await ctx.replyWithPhoto(WELCOME_BANNER_URL, {
+                caption: welcomeCaption,
+                reply_markup: mainMenuKeyboard(),
+            });
+        } catch (e) {
+            // Fallback to text if image fails
+            await ctx.reply(welcomeCaption, {
+                reply_markup: mainMenuKeyboard(),
+            });
+        }
+    } else {
+        await ctx.reply(welcomeCaption, {
+            reply_markup: mainMenuKeyboard(),
+        });
+    }
+
+    // Send reply keyboard separately (so it appears at bottom)
+    await ctx.reply("⌨️ Gunakan keyboard di bawah untuk navigasi cepat:", {
+        reply_markup: replyKeyboard,
+    });
+}
+
+/**
+ * Handle /referral command - show user's referral code and stats
+ */
+export async function handleReferralCommand(ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    const username = ctx.from?.username || "anonymous";
+
+    if (!userId) {
+        await ctx.reply("❌ Error: User tidak ditemukan.");
+        return;
+    }
+
+    try {
+        const { getOrCreateReferral, getReferralStats } = await import("../../services/referral.js");
+        const referral = await getOrCreateReferral(userId, username);
+        const stats = await getReferralStats(userId);
+
+        const botUsername = ctx.me?.username || "bot";
+        const referralLink = `https://t.me/${botUsername}?start=${referral.referral_code}`;
+
+        await ctx.reply(`🎁 *Referral Program*
+
+📋 Kode Referral Kamu:
+\`${referral.referral_code}\`
+
+🔗 Link Referral:
+${referralLink}
+
+📊 Statistik:
+├ Total Referred: ${stats?.referred_count || 0} user
+└ Total Bonus: ${formatRupiah(stats?.total_bonus || 0)}
+
+💡 Bagikan link di atas ke teman kamu!
+Kamu dapat bonus 5% dari setiap transaksi teman yang kamu refer.`, {
+            parse_mode: "Markdown",
+        });
+    } catch (e) {
+        await ctx.reply("❌ Gagal mengambil data referral.");
+    }
+}
+
+/**
+ * Handle "List Produk" reply keyboard button
+ */
+export async function handleListProdukButton(ctx: Context): Promise<void> {
+    const products = await getActiveProducts();
+
+    if (products.length === 0) {
+        await ctx.reply("😔 Belum ada produk tersedia saat ini.");
+        return;
+    }
+
+    // Pagination settings
+    const itemsPerPage = 10;
+    const totalPages = Math.ceil(products.length / itemsPerPage);
+    const currentPage = 1; // For now, hardcoded to page 1
+
+    const startIdx = (currentPage - 1) * itemsPerPage;
+    const endIdx = Math.min(startIdx + itemsPerPage, products.length);
+    const pageProducts = products.slice(startIdx, endIdx);
+
+    // Build product list with box format
+    let message = `╭ - - - - - - - - - - - - - - - - - - - ╮\n`;
+    message += `┊  LIST PRODUK ${BOT_NAME}\n`;
+    message += `┊- - - - - - - - - - - - - - - - - - - - -\n`;
+
+    for (let i = startIdx; i < endIdx; i++) {
+        const product = products[i];
+        const stock = await getProductStock(product.id);
+        const num = i + 1;
+        message += `┊ [${num}] ${product.name} (${stock})\n`;
+    }
+
+    message += `╰ - - - - - - - - - - - - - - - - - - - ╯\n\n`;
+    message += `➝ Ketik nomor produk (1-${products.length}) untuk melanjutkan.\n`;
+    message += `Halaman ${currentPage} dari ${totalPages}`;
+
+    // Build number button grid (5 per row)
+    const keyboard = new InlineKeyboard();
+    const buttonsPerRow = 5;
+
+    for (let i = startIdx; i < endIdx; i++) {
+        const num = i + 1;
+        const product = products[i];
+        keyboard.text(`${num}`, `product:${product.id}`);
+
+        if ((i - startIdx + 1) % buttonsPerRow === 0 && i < endIdx - 1) {
+            keyboard.row();
+        }
+    }
+
+    // Add pagination buttons if needed
+    if (totalPages > 1) {
+        keyboard.row();
+        if (currentPage > 1) {
+            keyboard.text("◀️ Prev", `prodpage:${currentPage - 1}`);
+        }
+        if (currentPage < totalPages) {
+            keyboard.text("Next ▶️", `prodpage:${currentPage + 1}`);
+        }
+    }
+
+    // Send with banner if available
+    if (WELCOME_BANNER_URL) {
+        try {
+            await ctx.replyWithPhoto(WELCOME_BANNER_URL, {
+                caption: message,
+                reply_markup: keyboard,
+            });
+        } catch (e) {
+            // Fallback to text if image fails
+            await ctx.reply(message, {
+                reply_markup: keyboard,
+            });
+        }
+    } else {
+        await ctx.reply(message, {
+            reply_markup: keyboard,
+        });
+    }
+}
+
+/**
+ * Handle "Cek Saldo" reply keyboard button
+ */
+export async function handleCekSaldoButton(ctx: Context): Promise<void> {
+    const user = ctx.from;
+    const userId = user?.id || 0;
+
+    // Get balance from deposit system
+    const { getBalance, getOrCreateBalance } = await import("../../services/deposit.js");
+    await getOrCreateBalance(userId, ctx.from?.username);
+    const balance = await getBalance(userId);
+
+    const { count: userOrderCount } = await supabase
+        .from("orders")
+        .select("*", { count: "exact", head: true })
+        .eq("telegram_user_id", userId)
+        .eq("status", "paid");
+
+    const { data: totalSpent } = await supabase
+        .from("orders")
+        .select("total_price")
+        .eq("telegram_user_id", userId)
+        .eq("status", "paid");
+
+    const total = totalSpent?.reduce((sum: number, o: { total_price: number }) => sum + o.total_price, 0) || 0;
+
+    await ctx.reply(`💰 *Info Akun Kamu*
+
+┌─────────────────────┐
+│ 💳 Saldo: ${formatRupiah(balance)}
+└─────────────────────┘
+
+📊 Statistik:
+├ Total Transaksi : ${userOrderCount || 0}x
+├ Total Belanja : ${formatRupiah(total)}
+└ Status : Member
+
+📌 Gunakan /topup <nominal> untuk isi saldo`, {
+        parse_mode: "Markdown",
+    });
+}
+
+/**
+ * Handle "Riwayat Order" reply keyboard button
+ */
+export async function handleRiwayatOrderButton(ctx: Context): Promise<void> {
+    const user = ctx.from;
+    const userId = user?.id || 0;
+
+    const { data: orders, error } = await supabase
+        .from("orders")
+        .select("*, products(name)")
+        .eq("telegram_user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+    if (error || !orders || orders.length === 0) {
+        await ctx.reply("📋 Kamu belum punya riwayat order.");
+        return;
+    }
+
+    let message = "📋 *Riwayat Order Terakhir*\n\n";
+
+    for (const order of orders) {
+        const statusEmoji = order.status === "paid" ? "✅" :
+            order.status === "pending" ? "⏳" :
+                order.status === "expired" ? "⌛" : "❌";
+        const date = new Date(order.created_at).toLocaleDateString("id-ID");
+        const productName = (order as any).products?.name || "Unknown";
+
+        message += `${statusEmoji} ${productName}\n`;
+        message += `   ${formatRupiah(order.total_price)} | ${date}\n\n`;
+    }
+
+    await ctx.reply(message, { parse_mode: "Markdown" });
+}
+
+/**
+ * Handle main menu callback (inline keyboard)
+ */
+export async function handleMainMenu(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+
+    const welcomeMessage = `🏠 *MENU UTAMA*
+
+╭━━━━━━━━━━━━━━━━━━━━━╮
+┃  Pilih menu di bawah ini:
+╰━━━━━━━━━━━━━━━━━━━━━╯`;
+
+    await ctx.editMessageText(welcomeMessage, {
+        parse_mode: "Markdown",
+        reply_markup: mainMenuKeyboard(),
+    });
+}
+
+/**
+ * Handle /help command
+ */
+export async function handleHelp(ctx: Context): Promise<void> {
+    const helpMessage = `❓ *Bantuan*
+
+*Cara Order:*
+1. Klik "🛍️ Lihat Produk"
+2. Pilih produk yang diinginkan
+3. Tentukan jumlah yang mau dibeli
+4. Pilih metode pembayaran:
+   • 💳 QRIS - Bayar langsung
+   • 💰 Saldo - Potong dari saldo
+5. Akun dikirim otomatis setelah bayar!
+
+*Fitur Saldo:*
+• /saldo - Cek saldo kamu
+• /topup <nominal> - Isi saldo via QRIS
+  Contoh: /topup 50000
+• /riwayat - Riwayat transaksi
+
+*Pembayaran:*
+• Via QRIS (GoPay, OVO, Dana, dll)
+• QR berlaku 15 menit
+• Akun langsung dikirim setelah bayar
+
+📞 Butuh bantuan?
+Hubungi admin jika ada kendala.`;
+
+    await ctx.reply(helpMessage, { parse_mode: "Markdown" });
+}
+
+/**
+ * Handle help menu callback
+ */
+export async function handleHelpMenu(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+    await handleHelp(ctx);
+}
+
+/**
+ * Check if user is admin
+ */
+export function isUserAdmin(userId: number | undefined): boolean {
+    if (!userId) return false;
+    return ADMIN_IDS.includes(userId);
+}
+
+// ============ DEPOSIT COMMANDS ============
+
+/**
+ * Handle /saldo command - check user balance
+ */
+export async function handleSaldo(ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!userId) {
+        await ctx.reply("❌ User tidak ditemukan.");
+        return;
+    }
+
+    try {
+        const { getBalance, getOrCreateBalance } = await import("../../services/deposit.js");
+        await getOrCreateBalance(userId, ctx.from?.username);
+        const balance = await getBalance(userId);
+
+        await ctx.reply(
+            `💰 *Saldo Kamu*\n\n` +
+            `┌─────────────────────┐\n` +
+            `│ 💳 ${formatRupiah(balance)}\n` +
+            `└─────────────────────┘\n\n` +
+            `📌 Gunakan /topup <nominal> untuk isi saldo\n` +
+            `Contoh: /topup 50000`,
+            { parse_mode: "Markdown" }
+        );
+    } catch (e) {
+        console.error("Error getting balance:", e);
+        await ctx.reply("❌ Gagal mengambil saldo.");
+    }
+}
+
+/**
+ * Handle /topup command - request topup via QRIS
+ */
+export async function handleTopup(ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    const username = ctx.from?.username;
+    const chatId = ctx.chat?.id;
+
+    if (!userId || !chatId) {
+        await ctx.reply("❌ User tidak ditemukan.");
+        return;
+    }
+
+    // Parse amount from command
+    const text = ctx.message?.text || "";
+    const parts = text.split(/\s+/);
+    const amountStr = parts[1];
+
+    if (!amountStr) {
+        await ctx.reply(
+            `💳 *Topup Saldo*\n\n` +
+            `Cara penggunaan:\n` +
+            `/topup <nominal>\n\n` +
+            `Contoh:\n` +
+            `• /topup 10000\n` +
+            `• /topup 50000\n` +
+            `• /topup 100000\n\n` +
+            `Minimal topup: Rp 10.000`,
+            { parse_mode: "Markdown" }
+        );
+        return;
+    }
+
+    const amount = parseInt(amountStr.replace(/\D/g, ""));
+    if (isNaN(amount) || amount < 10000) {
+        await ctx.reply("❌ Nominal tidak valid. Minimal topup Rp 10.000");
+        return;
+    }
+
+    if (amount > 10000000) {
+        await ctx.reply("❌ Maksimal topup Rp 10.000.000 per transaksi.");
+        return;
+    }
+
+    try {
+        const { createTransaction, generateQRImage } = await import("../../services/qris.js");
+        const { createTopupRequest, updateTopupQrMessageId, getOrCreateBalance } = await import("../../services/deposit.js");
+
+        // Ensure user has balance record
+        await getOrCreateBalance(userId, username);
+
+        // Create QRIS transaction
+        const topupOrderId = `TOPUP-${userId}-${Date.now()}`;
+        const qrisResult = await createTransaction(topupOrderId, amount, `telegram_${userId}`);
+
+        if (!qrisResult.success || !qrisResult.data) {
+            await ctx.reply("❌ Gagal membuat QRIS. Coba lagi nanti.");
+            return;
+        }
+
+        // Create topup request in database (store our order_id, not QRIS's transaction_id)
+        const topupRequest = await createTopupRequest(
+            userId,
+            username,
+            amount,
+            qrisResult.data.amount_total,
+            topupOrderId, // Use our order_id so webhook can find it
+            chatId
+        );
+
+        // Generate QR image
+        const qrBuffer = await generateQRImage(qrisResult.data.qris_content);
+
+        // Send QR to user
+        const qrMsg = await ctx.replyWithPhoto(
+            new InputFile(qrBuffer, "topup-qr.png"),
+            {
+                caption:
+                    `💳 *Topup Saldo*\n\n` +
+                    `┌─────────────────────────┐\n` +
+                    `│ 📝 Nominal: ${formatRupiah(amount)}\n` +
+                    `│ 💵 Bayar: *${formatRupiah(qrisResult.data.amount_total)}*\n` +
+                    `│ ⏳ Berlaku: 15 menit\n` +
+                    `└─────────────────────────┘\n\n` +
+                    `⚠️ *Penting:* Bayar tepat ${formatRupiah(qrisResult.data.amount_total)}\n` +
+                    `📲 Scan QR dengan GoPay/OVO/Dana/dll\n\n` +
+                    `💡 Saldo akan otomatis masuk setelah bayar!`,
+                parse_mode: "Markdown",
+            }
+        );
+
+        // Save QR message ID
+        await updateTopupQrMessageId(topupRequest.id, qrMsg.message_id);
+
+    } catch (e) {
+        console.error("Error creating topup:", e);
+        await ctx.reply("❌ Gagal membuat topup. Coba lagi nanti.");
+    }
+}
+
+/**
+ * Handle /riwayat command - transaction history
+ */
+export async function handleRiwayat(ctx: Context): Promise<void> {
+    const userId = ctx.from?.id;
+    if (!userId) {
+        await ctx.reply("❌ User tidak ditemukan.");
+        return;
+    }
+
+    try {
+        const { getTransactionHistory, getBalance } = await import("../../services/deposit.js");
+        const transactions = await getTransactionHistory(userId, 10);
+        const balance = await getBalance(userId);
+
+        if (transactions.length === 0) {
+            await ctx.reply(
+                `📋 *Riwayat Transaksi*\n\n` +
+                `💳 Saldo: ${formatRupiah(balance)}\n\n` +
+                `Belum ada transaksi.`,
+                { parse_mode: "Markdown" }
+            );
+            return;
+        }
+
+        let message = `📋 *Riwayat Transaksi*\n\n`;
+        message += `💳 Saldo: ${formatRupiah(balance)}\n`;
+        message += `━━━━━━━━━━━━━━━━━━\n\n`;
+
+        for (const tx of transactions) {
+            const emoji = tx.type === "topup" ? "💰" :
+                tx.type === "payment" ? "🛒" : "↩️";
+            const sign = tx.amount >= 0 ? "+" : "";
+            const date = new Date(tx.created_at).toLocaleDateString("id-ID", {
+                day: "2-digit",
+                month: "short",
+            });
+            message += `${emoji} ${sign}${formatRupiah(tx.amount)} | ${date}\n`;
+            if (tx.description) {
+                message += `   └ ${tx.description}\n`;
+            }
+        }
+
+        await ctx.reply(message, { parse_mode: "Markdown" });
+    } catch (e) {
+        console.error("Error getting transaction history:", e);
+        await ctx.reply("❌ Gagal mengambil riwayat transaksi.");
+    }
+}
