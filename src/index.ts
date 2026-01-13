@@ -113,6 +113,46 @@ bot.command("riwayat", handleRiwayat);
 bot.command("chat", handleStartChat);
 bot.command("endchat", handleEndChat);
 bot.command("chats", handleAdminChats);
+
+// Status/Health command (admin only)
+const botStartTime = Date.now();
+bot.command("status", async (ctx) => {
+    if (!isAdmin(ctx.from?.id || 0)) {
+        return ctx.reply("❌ Command ini hanya untuk admin.");
+    }
+
+    const uptime = Date.now() - botStartTime;
+    const seconds = Math.floor(uptime / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    let uptimeStr = "";
+    if (days > 0) uptimeStr = `${days}d ${hours % 24}h ${minutes % 60}m`;
+    else if (hours > 0) uptimeStr = `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+    else if (minutes > 0) uptimeStr = `${minutes}m ${seconds % 60}s`;
+    else uptimeStr = `${seconds}s`;
+
+    const memoryUsage = process.memoryUsage();
+    const usedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+    const totalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024);
+
+    const statusMessage = `
+🤖 *BOT STATUS*
+
+✅ Status: Online
+⏱ Uptime: ${uptimeStr}
+🕐 Started: ${new Date(botStartTime).toLocaleString("id-ID")}
+
+💾 Memory: ${usedMB}MB / ${totalMB}MB
+📦 Node: ${process.version}
+🖥 Platform: ${process.platform}
+
+📅 Current: ${new Date().toLocaleString("id-ID")}
+`;
+
+    await ctx.reply(statusMessage, { parse_mode: "Markdown" });
+});
 bot.command("stopreply", handleStopReply);
 
 // ============ CALLBACK QUERIES ============
