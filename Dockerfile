@@ -15,6 +15,9 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+# Copy assets to dist
+RUN mkdir -p dist/assets && cp -r assets/* dist/assets/ 2>/dev/null || true
+
 # Production stage
 FROM node:20-alpine AS production
 
@@ -22,13 +25,10 @@ WORKDIR /app
 
 # Install only production dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy built files from builder
 COPY --from=builder /app/dist ./dist
-
-# Copy template if exists
-COPY --from=builder /app/src/services/qris_template.png ./dist/services/ 2>/dev/null || true
 
 # Expose port
 EXPOSE 3000
