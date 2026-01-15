@@ -1153,3 +1153,101 @@ Segera tambah stok!`;
     }
 }
 
+/**
+ * Handle /mt command - maintenance mode broadcast
+ * Format: /mt [reason/message]
+ */
+export async function handleMaintenanceCommand(ctx: Context): Promise<void> {
+    if (!isAdmin(ctx.from?.id)) {
+        await ctx.reply("❌ Akses ditolak.");
+        return;
+    }
+
+    const text = ctx.message?.text || "";
+    const reason = text.replace(/^\/mt\s*/, "").trim();
+
+    if (!reason) {
+        // Show instructions
+        await ctx.reply(`🔧 *Mode Maintenance*
+
+Format:
+\`/mt [alasan/pesan]\`
+
+Contoh:
+\`/mt Sedang ada perbaikan server, estimasi 30 menit\`
+\`/mt Update sistem, layanan akan kembali normal segera\`
+
+Pesan maintenance akan dikirim ke semua user.`, { parse_mode: "Markdown" });
+        return;
+    }
+
+    // Get unique users who have ordered
+    const { data: orders, error } = await supabase
+        .from("orders")
+        .select("telegram_user_id, telegram_username")
+        .not("telegram_user_id", "is", null);
+
+    if (error || !orders || orders.length === 0) {
+        await ctx.reply("❌ Tidak ada user yang bisa dikirimi notifikasi.");
+        return;
+    }
+
+    // Get unique users
+    const uniqueUsers = new Map<number, string>();
+    orders.forEach(o => {
+        if (o.telegram_user_id && !uniqueUsers.has(o.telegram_user_id)) {
+            uniqueUsers.set(o.telegram_user_id, o.telegram_username || "");
+        }
+    });
+
+    const userList = Array.from(uniqueUsers.entries());
+
+    await ctx.reply(`🔧 Mengirim notifikasi maintenance ke ${userList.length} user...`);
+
+    let success = 0;
+    let failed = 0;
+
+    // We need bot instance - import from order handler
+    const { getBotInstance } = await import("./order.js");
+    const bot = getBotInstance();
+
+    if (!bot) {
+        await ctx.reply("❌ Bot instance tidak tersedia.");
+        return;
+    }
+
+    const currentTime = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+    
+    const maintenanceMessage = `🔧 *MAINTENANCE*
+
+━━━━━━━━━━━━━━━━━━
+
+⚠️ *Pemberitahuan*:
+${reason}
+
+━━━━━━━━━━━━━━━━━━
+
+🕐 Waktu: ${currentTime}
+
+Mohon maaf atas ketidaknyamanannya.
+Terima kasih atas pengertiannya 🙏`;
+
+    for (const [userId] of userList) {
+        try {
+            await bot.api.sendMessage(userId, maintenanceMessage, {
+                parse_mode: "Markdown",
+            });
+            success++;
+        } catch (e) {
+            failed++;
+        }
+        // Small delay to avoid rate limits
+        await new Promise(r => setTimeout(r, 50));
+    }
+
+    await ctx.reply(`✅ Notifikasi maintenance terkirim!
+
+📤 Terkirim: ${success}
+❌ Gagal: ${failed}`);
+}
+

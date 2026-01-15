@@ -56,6 +56,7 @@ import {
     handleVoucherCommand,
     handleStatsDetailedCommand,
     handleExportCommand,
+    handleMaintenanceCommand,
     isAdmin,
 } from "./bot/handlers/admin.js";
 import {
@@ -100,6 +101,7 @@ bot.command("users", handleUsersCommand);
 bot.command("voucher", handleVoucherCommand);
 bot.command("stats", handleStatsDetailedCommand);
 bot.command("export", handleExportCommand);
+bot.command("mt", handleMaintenanceCommand);
 bot.command("referral", handleReferralCommand);
 bot.command("produk", handleListProdukButton);
 bot.command("bantuan", handleHelp);
