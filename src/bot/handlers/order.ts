@@ -198,6 +198,17 @@ export async function handleProductSelect(ctx: Context): Promise<void> {
 export async function handleBuyProduct(ctx: Context): Promise<void> {
     await ctx.answerCallbackQuery();
 
+    // Check if maintenance mode is active
+    const { isMaintenanceActive, getMaintenanceInfo } = await import("./admin.js");
+    if (isMaintenanceActive()) {
+        const info = getMaintenanceInfo();
+        await ctx.answerCallbackQuery({
+            text: `🔧 Bot sedang maintenance: ${info.reason}`,
+            show_alert: true
+        });
+        return;
+    }
+
     const data = ctx.callbackQuery?.data;
     if (!data) return;
 

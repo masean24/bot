@@ -1153,9 +1153,30 @@ Segera tambah stok!`;
     }
 }
 
+// Maintenance mode state
+let maintenanceMode = {
+    active: false,
+    reason: "",
+    startedAt: null as Date | null,
+};
+
 /**
- * Handle /mt command - maintenance mode broadcast
- * Format: /mt [reason/message]
+ * Check if maintenance mode is active
+ */
+export function isMaintenanceActive(): boolean {
+    return maintenanceMode.active;
+}
+
+/**
+ * Get maintenance info
+ */
+export function getMaintenanceInfo(): { active: boolean; reason: string; startedAt: Date | null } {
+    return { ...maintenanceMode };
+}
+
+/**
+ * Handle /mt command - maintenance mode on/off
+ * Format: /mt on [reason] or /mt off
  */
 export async function handleMaintenanceCommand(ctx: Context): Promise<void> {
     if (!isAdmin(ctx.from?.id)) {
@@ -1164,50 +1185,34 @@ export async function handleMaintenanceCommand(ctx: Context): Promise<void> {
     }
 
     const text = ctx.message?.text || "";
-    const reason = text.replace(/^\/mt\s*/, "").trim();
+    const args = text.replace(/^\/mt\s*/, "").trim().split(/\s+/);
+    const action = args[0]?.toLowerCase();
 
-    if (!reason) {
-        // Show instructions
-        await ctx.reply(`🔧 *Mode Maintenance*
+    // Show current status if no args
+    if (!action) {
+        const status = maintenanceMode.active ? "🔴 AKTIF" : "🟢 TIDAK AKTIF";
+        let message = `🔧 *Mode Maintenance*
 
-Format:
-\`/mt [alasan/pesan]\`
+Status: ${status}`;
 
-Contoh:
-\`/mt Sedang ada perbaikan server, estimasi 30 menit\`
-\`/mt Update sistem, layanan akan kembali normal segera\`
-
-Pesan maintenance akan dikirim ke semua user.`, { parse_mode: "Markdown" });
-        return;
-    }
-
-    // Get unique users who have ordered
-    const { data: orders, error } = await supabase
-        .from("orders")
-        .select("telegram_user_id, telegram_username")
-        .not("telegram_user_id", "is", null);
-
-    if (error || !orders || orders.length === 0) {
-        await ctx.reply("❌ Tidak ada user yang bisa dikirimi notifikasi.");
-        return;
-    }
-
-    // Get unique users
-    const uniqueUsers = new Map<number, string>();
-    orders.forEach(o => {
-        if (o.telegram_user_id && !uniqueUsers.has(o.telegram_user_id)) {
-            uniqueUsers.set(o.telegram_user_id, o.telegram_username || "");
+        if (maintenanceMode.active) {
+            const startTime = maintenanceMode.startedAt?.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) || "-";
+            message += `
+📝 Alasan: ${maintenanceMode.reason}
+🕐 Mulai: ${startTime}`;
         }
-    });
 
-    const userList = Array.from(uniqueUsers.entries());
+        message += `
 
-    await ctx.reply(`🔧 Mengirim notifikasi maintenance ke ${userList.length} user...`);
+*Commands:*
+• \`/mt on [alasan]\` - Aktifkan maintenance
+• \`/mt off\` - Matikan maintenance`;
 
-    let success = 0;
-    let failed = 0;
+        await ctx.reply(message, { parse_mode: "Markdown" });
+        return;
+    }
 
-    // We need bot instance - import from order handler
+    // Get bot instance
     const { getBotInstance } = await import("./order.js");
     const bot = getBotInstance();
 
@@ -1216,14 +1221,43 @@ Pesan maintenance akan dikirim ke semua user.`, { parse_mode: "Markdown" });
         return;
     }
 
-    const currentTime = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
-    
-    const maintenanceMessage = `🔧 *MAINTENANCE*
+    if (action === "on") {
+        const reason = args.slice(1).join(" ") || "Sedang dalam maintenance";
+
+        if (maintenanceMode.active) {
+            await ctx.reply("⚠️ Mode maintenance sudah aktif!");
+            return;
+        }
+
+        // Enable maintenance
+        maintenanceMode = {
+            active: true,
+            reason: reason,
+            startedAt: new Date(),
+        };
+
+        const currentTime = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+
+        // Get unique users to broadcast
+        const { data: orders } = await supabase
+            .from("orders")
+            .select("telegram_user_id")
+            .not("telegram_user_id", "is", null);
+
+        const uniqueUsers = new Set<number>();
+        orders?.forEach(o => {
+            if (o.telegram_user_id) uniqueUsers.add(o.telegram_user_id);
+        });
+
+        const maintenanceMessage = `🔧 *MAINTENANCE MODE*
 
 ━━━━━━━━━━━━━━━━━━
 
 ⚠️ *Pemberitahuan*:
 ${reason}
+
+Bot sedang dalam mode maintenance.
+Pemesanan akan ditutup sementara.
 
 ━━━━━━━━━━━━━━━━━━
 
@@ -1232,22 +1266,100 @@ ${reason}
 Mohon maaf atas ketidaknyamanannya.
 Terima kasih atas pengertiannya 🙏`;
 
-    for (const [userId] of userList) {
-        try {
-            await bot.api.sendMessage(userId, maintenanceMessage, {
-                parse_mode: "Markdown",
-            });
-            success++;
-        } catch (e) {
-            failed++;
+        let success = 0, failed = 0;
+
+        await ctx.reply(`🔧 Mengaktifkan mode maintenance dan broadcast ke ${uniqueUsers.size} user...`);
+
+        for (const userId of uniqueUsers) {
+            try {
+                await bot.api.sendMessage(userId, maintenanceMessage, { parse_mode: "Markdown" });
+                success++;
+            } catch (e) {
+                failed++;
+            }
+            await new Promise(r => setTimeout(r, 50));
         }
-        // Small delay to avoid rate limits
-        await new Promise(r => setTimeout(r, 50));
-    }
 
-    await ctx.reply(`✅ Notifikasi maintenance terkirim!
+        await ctx.reply(`✅ Mode maintenance AKTIF!
 
-📤 Terkirim: ${success}
+🔴 Status: MAINTENANCE
+📝 Alasan: ${reason}
+
+📤 Broadcast terkirim: ${success}
+❌ Gagal: ${failed}
+
+Gunakan \`/mt off\` untuk menonaktifkan.`, { parse_mode: "Markdown" });
+
+    } else if (action === "off") {
+        if (!maintenanceMode.active) {
+            await ctx.reply("⚠️ Mode maintenance tidak aktif!");
+            return;
+        }
+
+        // Disable maintenance
+        maintenanceMode = {
+            active: false,
+            reason: "",
+            startedAt: null,
+        };
+
+        const currentTime = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+
+        // Get unique users to broadcast
+        const { data: orders } = await supabase
+            .from("orders")
+            .select("telegram_user_id")
+            .not("telegram_user_id", "is", null);
+
+        const uniqueUsers = new Set<number>();
+        orders?.forEach(o => {
+            if (o.telegram_user_id) uniqueUsers.add(o.telegram_user_id);
+        });
+
+        const resumeMessage = `✅ *LAYANAN KEMBALI NORMAL*
+
+━━━━━━━━━━━━━━━━━━
+
+🎉 Maintenance telah selesai!
+
+Bot sudah kembali bisa digunakan untuk pemesanan.
+
+━━━━━━━━━━━━━━━━━━
+
+🕐 Waktu: ${currentTime}
+
+Terima kasih atas kesabarannya! 🙏`;
+
+        let success = 0, failed = 0;
+
+        await ctx.reply(`🔧 Menonaktifkan mode maintenance dan broadcast ke ${uniqueUsers.size} user...`);
+
+        for (const userId of uniqueUsers) {
+            try {
+                await bot.api.sendMessage(userId, resumeMessage, { parse_mode: "Markdown" });
+                success++;
+            } catch (e) {
+                failed++;
+            }
+            await new Promise(r => setTimeout(r, 50));
+        }
+
+        await ctx.reply(`✅ Mode maintenance NONAKTIF!
+
+🟢 Status: NORMAL
+Bot sudah bisa digunakan kembali.
+
+📤 Broadcast terkirim: ${success}
 ❌ Gagal: ${failed}`);
+
+    } else {
+        await ctx.reply(`❌ Command tidak valid.
+
+*Commands:*
+• \`/mt\` - Cek status
+• \`/mt on [alasan]\` - Aktifkan maintenance
+• \`/mt off\` - Matikan maintenance`, { parse_mode: "Markdown" });
+    }
 }
+
 
