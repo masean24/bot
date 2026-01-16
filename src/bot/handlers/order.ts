@@ -61,6 +61,7 @@ export async function handleCategoryDetail(ctx: Context, categoryId: string): Pr
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
+        timeZone: "Asia/Jakarta",
     });
 
     // Build message with category info
@@ -157,6 +158,7 @@ export async function handleProductSelectByNumber(ctx: Context, productId: strin
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
+        timeZone: "Asia/Jakarta",
     });
 
     const detailMessage = `╭ - - - - - - - - - - - - - - - - - - - - - ╮
@@ -250,6 +252,7 @@ export async function handleProductSelect(ctx: Context): Promise<void> {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
+        timeZone: "Asia/Jakarta",
     });
 
     const detailMessage = `╭ - - - - - - - - - - - - - - - - - - - - - ╮
@@ -336,6 +339,7 @@ async function showOrderConfirmation(
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
+        timeZone: "Asia/Jakarta",
     });
 
     // Ensure quantity is valid

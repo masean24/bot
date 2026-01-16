@@ -257,6 +257,7 @@ export async function handleViewChat(ctx: Context): Promise<void> {
             const time = new Date(msg.created_at).toLocaleTimeString("id-ID", {
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Asia/Jakarta",
             });
             chatHistory += `${sender} [${time}] ${msg.message}\n`;
         }
