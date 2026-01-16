@@ -599,8 +599,9 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     `✅ Kategori berhasil dibuat!\n\n📁 ${product.name}\n📝 ${product.description}\n\nSekarang tambah produk di kategori ini via menu admin.`,
                     { reply_markup: adminMenuKeyboard() }
                 );
-            } catch (e) {
-                await ctx.reply("❌ Gagal membuat kategori. Coba lagi.");
+            } catch (e: any) {
+                console.error("[ADMIN] Failed to create category:", e?.message || e);
+                await ctx.reply(`❌ Gagal membuat kategori: ${e?.message || "Unknown error"}`);
                 adminState.delete(userId);
             }
             break;
