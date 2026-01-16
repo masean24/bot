@@ -5,7 +5,7 @@ import path from "path";
 import { QRIS_API_KEY } from "../config.js";
 import type { QrisCreateResponse, QrisTransactionDetail } from "../types/index.js";
 
-const QRIS_BASE_URL = "https://oxwabhgytoqjrtesyoyp.supabase.co/functions/v1";
+const QRIS_BASE_URL = "https://qris.hubify.store/api";
 
 // Template settings - use process.cwd() for compatibility
 // Template is 1024x1024 px, white box is ~560x560 px centered
@@ -46,7 +46,7 @@ export async function createTransaction(
                 amount_total: response.data.amount_total,
                 qris_content: response.data.qris_content,
                 qris_image_url: response.data.qris_image_url,
-                expired_at: response.data.expired_at,
+                expired_at: response.data.expires_at, 
             },
         };
     } catch (error: any) {
@@ -66,7 +66,7 @@ export async function getTransactionStatus(
 ): Promise<QrisTransactionDetail | null> {
     try {
         const response = await axios.get(
-            `${QRIS_BASE_URL}/check-transaction/${transactionId}`,
+            `${QRIS_BASE_URL}/check-status/${transactionId}`,
             {
                 headers: {
                     "Authorization": `Bearer ${QRIS_API_KEY}`,
