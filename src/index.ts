@@ -80,6 +80,35 @@ validateConfig();
 // Create bot instance
 const bot = new Bot(BOT_TOKEN);
 
+// Global middleware for maintenance mode
+bot.use(async (ctx, next) => {
+    const { isMaintenanceActive, getMaintenanceInfo, isAdmin } = await import("./bot/handlers/admin.js");
+
+    // If maintenance is active and user is not admin, block the request
+    if (isMaintenanceActive() && !isAdmin(ctx.from?.id)) {
+        const info = getMaintenanceInfo();
+        const startTime = info.startedAt?.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) || "-";
+
+        const maintenanceReply = `🔧 *Bot Sedang Maintenance*
+
+━━━━━━━━━━━━━━━━━━
+
+⚠️ *Status*: MAINTENANCE
+📝 *Alasan*: ${info.reason}
+🕐 *Mulai*: ${startTime}
+
+━━━━━━━━━━━━━━━━━━
+
+Mohon maaf, bot sedang dalam perbaikan.
+Silakan coba lagi nanti. 🙏`;
+
+        await ctx.reply(maintenanceReply, { parse_mode: "Markdown" });
+        return; // Don't proceed to next handlers
+    }
+
+    await next();
+});
+
 // Set bot instance for handlers
 setBotInstance(bot);
 
