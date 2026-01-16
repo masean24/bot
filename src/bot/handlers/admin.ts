@@ -166,8 +166,9 @@ export async function handleAdminProductDetail(ctx: Context): Promise<void> {
         .text("📤 Tambah Stok", `admin:stock:${productId}`)
         .row()
         .text("👁️ Lihat Akun", `admin:detailstock:${productId}`)
-        .text("🗑️ Hapus", `admin:delete:${productId}`)
+        .text("📥 Tarik Akun", `admin:withdraw:${productId}`)
         .row()
+        .text("🗑️ Hapus", `admin:delete:${productId}`)
         .text("🔙 Kembali", "admin:products");
 
     await ctx.editMessageText(message, {
@@ -622,6 +623,10 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                 await ctx.reply("❌ Gagal mengupdate produk. Coba lagi.");
                 adminState.delete(userId);
             }
+            break;
+
+        case "withdraw_custom_qty":
+            await processWithdrawCustomQty(ctx, state);
             break;
 
         default:
@@ -1362,4 +1367,243 @@ Bot sudah bisa digunakan kembali.
     }
 }
 
+/**
+ * Handle withdraw account - start
+ */
+export async function handleWithdrawStart(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
 
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    const productId = data.replace("admin:withdraw:", "");
+    const product = await getProductById(productId);
+
+    if (!product) {
+        await ctx.answerCallbackQuery({ text: "Produk tidak ditemukan", show_alert: true });
+        return;
+    }
+
+    const stock = await getProductStock(productId);
+
+    if (stock === 0) {
+        await ctx.answerCallbackQuery({ text: "Tidak ada stok tersedia", show_alert: true });
+        return;
+    }
+
+    const keyboard = new InlineKeyboard();
+
+    // Add quick quantity buttons
+    if (stock >= 1) keyboard.text("1", `admin:withdrawqty:${productId}:1`);
+    if (stock >= 5) keyboard.text("5", `admin:withdrawqty:${productId}:5`);
+    if (stock >= 10) keyboard.text("10", `admin:withdrawqty:${productId}:10`);
+    if (stock >= 25) keyboard.text("25", `admin:withdrawqty:${productId}:25`);
+    keyboard.row();
+
+    if (stock >= 50) keyboard.text("50", `admin:withdrawqty:${productId}:50`);
+    if (stock >= 100) keyboard.text("100", `admin:withdrawqty:${productId}:100`);
+    keyboard.text("📥 Semua", `admin:withdrawqty:${productId}:all`);
+    keyboard.row();
+
+    keyboard.text("✏️ Custom", `admin:withdrawcustom:${productId}`);
+    keyboard.text("🔙 Batal", `admin:product:${productId}`);
+
+    await ctx.editMessageText(`📥 *Tarik Akun: ${product.name}*
+
+📊 Stok tersedia: ${stock}
+
+Pilih jumlah akun yang ingin ditarik:`.replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&"), {
+        parse_mode: "MarkdownV2",
+        reply_markup: keyboard,
+    });
+}
+
+/**
+ * Handle withdraw with specific quantity
+ */
+export async function handleWithdrawQuantity(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    // Parse: admin:withdrawqty:{productId}:{quantity}
+    const parts = data.replace("admin:withdrawqty:", "").split(":");
+    const productId = parts[0];
+    const quantityStr = parts[1];
+
+    const product = await getProductById(productId);
+    if (!product) return;
+
+    const stock = await getProductStock(productId);
+    const quantity = quantityStr === "all" ? stock : parseInt(quantityStr);
+
+    if (quantity <= 0 || quantity > stock) {
+        await ctx.answerCallbackQuery({ text: `Stok tidak cukup! Tersedia: ${stock}`, show_alert: true });
+        return;
+    }
+
+    // Get credentials
+    const { data: credentials, error } = await supabase
+        .from("credentials")
+        .select("*")
+        .eq("product_id", productId)
+        .eq("is_sold", false)
+        .limit(quantity);
+
+    if (error || !credentials || credentials.length === 0) {
+        await ctx.answerCallbackQuery({ text: "Gagal mengambil akun", show_alert: true });
+        return;
+    }
+
+    // Delete credentials from database
+    const credentialIds = credentials.map(c => c.id);
+    const { error: deleteError } = await supabase
+        .from("credentials")
+        .delete()
+        .in("id", credentialIds);
+
+    if (deleteError) {
+        console.error("Error deleting credentials:", deleteError);
+        await ctx.answerCallbackQuery({ text: "Gagal menghapus akun dari database", show_alert: true });
+        return;
+    }
+
+    // Format export text
+    let exportText = `📥 *TARIK AKUN BERHASIL*\n`;
+    exportText += `📦 Produk: ${product.name}\n`;
+    exportText += `📅 ${new Date().toLocaleString("id-ID")}\n`;
+    exportText += `📊 Jumlah: ${credentials.length}\n\n`;
+    exportText += `━━━ AKUN ━━━\n\n`;
+
+    credentials.forEach((c, idx) => {
+        exportText += `${idx + 1}. ${c.email}|${c.password}|${c.pin || "-"}|${c.extra_info || "-"}\n`;
+    });
+
+    // Send as plain text for easy copy
+    await ctx.reply(exportText);
+
+    // Update message
+    const newStock = await getProductStock(productId);
+    await ctx.editMessageText(`✅ *Berhasil menarik ${credentials.length} akun!*
+
+📦 Produk: ${product.name}
+📊 Stok sebelum: ${stock}
+📊 Stok sesudah: ${newStock}
+
+Akun sudah dikirim di pesan terpisah.`, {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text("🔙 Kembali ke Produk", `admin:product:${productId}`),
+    });
+}
+
+/**
+ * Handle custom quantity input
+ */
+export async function handleWithdrawCustom(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    const productId = data.replace("admin:withdrawcustom:", "");
+    const product = await getProductById(productId);
+
+    if (!product) return;
+
+    const stock = await getProductStock(productId);
+
+    adminState.set(ctx.from!.id, {
+        step: "withdraw_custom_qty",
+        data: { productId, productName: product.name, stock },
+    });
+
+    await ctx.editMessageText(`📥 *Tarik Akun: ${product.name}*
+
+📊 Stok tersedia: ${stock}
+
+Kirim jumlah akun yang ingin ditarik (angka 1-${stock}):`, {
+        parse_mode: "Markdown",
+    });
+}
+
+/**
+ * Handle custom quantity text input (add to handleAdminTextInput switch)
+ */
+export async function processWithdrawCustomQty(ctx: Context, state: any): Promise<boolean> {
+    const text = ctx.message?.text;
+    if (!text) return false;
+
+    const quantity = parseInt(text.trim());
+
+    if (isNaN(quantity) || quantity <= 0) {
+        await ctx.reply("❌ Masukkan angka yang valid.");
+        return true;
+    }
+
+    if (quantity > state.data.stock) {
+        await ctx.reply(`❌ Stok tidak cukup! Tersedia: ${state.data.stock}`);
+        return true;
+    }
+
+    const productId = state.data.productId;
+    const product = await getProductById(productId);
+
+    if (!product) {
+        await ctx.reply("❌ Produk tidak ditemukan.");
+        adminState.delete(ctx.from!.id);
+        return true;
+    }
+
+    // Get credentials
+    const { data: credentials, error } = await supabase
+        .from("credentials")
+        .select("*")
+        .eq("product_id", productId)
+        .eq("is_sold", false)
+        .limit(quantity);
+
+    if (error || !credentials || credentials.length === 0) {
+        await ctx.reply("❌ Gagal mengambil akun.");
+        adminState.delete(ctx.from!.id);
+        return true;
+    }
+
+    // Delete credentials from database
+    const credentialIds = credentials.map(c => c.id);
+    const { error: deleteError } = await supabase
+        .from("credentials")
+        .delete()
+        .in("id", credentialIds);
+
+    if (deleteError) {
+        console.error("Error deleting credentials:", deleteError);
+        await ctx.reply("❌ Gagal menghapus akun dari database.");
+        adminState.delete(ctx.from!.id);
+        return true;
+    }
+
+    // Format export text
+    let exportText = `📥 *TARIK AKUN BERHASIL*\n`;
+    exportText += `📦 Produk: ${product.name}\n`;
+    exportText += `📅 ${new Date().toLocaleString("id-ID")}\n`;
+    exportText += `📊 Jumlah: ${credentials.length}\n\n`;
+    exportText += `━━━ AKUN ━━━\n\n`;
+
+    credentials.forEach((c, idx) => {
+        exportText += `${idx + 1}. ${c.email}|${c.password}|${c.pin || "-"}|${c.extra_info || "-"}\n`;
+    });
+
+    await ctx.reply(exportText);
+
+    const newStock = await getProductStock(productId);
+    await ctx.reply(`✅ Berhasil menarik ${credentials.length} akun!
+
+📊 Stok sebelum: ${state.data.stock}
+📊 Stok sesudah: ${newStock}`, {
+        reply_markup: adminMenuKeyboard(),
+    });
+
+    adminState.delete(ctx.from!.id);
+    return true;
+}

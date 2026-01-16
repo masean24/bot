@@ -57,6 +57,9 @@ import {
     handleStatsDetailedCommand,
     handleExportCommand,
     handleMaintenanceCommand,
+    handleWithdrawStart,
+    handleWithdrawQuantity,
+    handleWithdrawCustom,
     isAdmin,
 } from "./bot/handlers/admin.js";
 import {
@@ -274,6 +277,9 @@ bot.callbackQuery(/^admin:viewstock:/, handleViewStock);
 bot.callbackQuery(/^admin:stock:/, handleAddStockForProduct);
 bot.callbackQuery(/^admin:detailstock:/, handleViewDetailedStock);
 bot.callbackQuery(/^admin:exportstock:/, handleExportStock);
+bot.callbackQuery(/^admin:withdraw:/, handleWithdrawStart);
+bot.callbackQuery(/^admin:withdrawqty:/, handleWithdrawQuantity);
+bot.callbackQuery(/^admin:withdrawcustom:/, handleWithdrawCustom);
 
 // Chat callbacks
 bot.callbackQuery(/^closechat:/, handleCloseChat);
