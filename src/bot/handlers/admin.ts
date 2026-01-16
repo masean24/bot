@@ -588,10 +588,10 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                 const product = await createProduct({
                     name: state.data.name,
                     description: state.data.description,
-                    price: 0, // Categories don't have price
+                    price: 1, // Dummy price (categories aren't sold directly)
                     is_active: true,
-                    parent_id: null, // This is a parent/category
-                    is_category: true, // Mark as category
+                    parent_id: null,
+                    is_category: true,
                 });
 
                 adminState.delete(userId);
