@@ -2,14 +2,29 @@ import axios from "axios";
 import QRCode from "qrcode";
 import sharp from "sharp";
 import path from "path";
+import fs from "fs";
 import { QRIS_API_KEY } from "../config.js";
 import type { QrisCreateResponse, QrisTransactionDetail } from "../types/index.js";
 
 const QRIS_BASE_URL = "https://qris.hubify.store/api";
 
-// Template settings - use process.cwd() for compatibility
+// Template settings - check multiple locations for compatibility
 // Template is 1024x1024 px, white box is ~560x560 px centered
-const TEMPLATE_PATH = path.join(process.cwd(), "assets", "qris-template.jpg");
+const TEMPLATE_PATHS = [
+    path.join(process.cwd(), "assets", "qris-template.jpg"),        // Development
+    path.join(process.cwd(), "dist", "assets", "qris-template.jpg"), // Production (Docker)
+];
+
+function getTemplatePath(): string | null {
+    for (const templatePath of TEMPLATE_PATHS) {
+        if (fs.existsSync(templatePath)) {
+            console.log("QRIS template found at:", templatePath);
+            return templatePath;
+        }
+    }
+    console.warn("QRIS template not found in any location:", TEMPLATE_PATHS);
+    return null;
+}
 const QR_SIZE = 550; // QR code size in pixels (fits the white box)
 const QR_POSITION_X = 237; // X position for QR overlay (centered in white box)
 const QR_POSITION_Y = 237; // Y position for QR overlay (moved down)
@@ -46,7 +61,11 @@ export async function createTransaction(
                 amount_total: response.data.amount_total,
                 qris_content: response.data.qris_content,
                 qris_image_url: response.data.qris_image_url,
+<<<<<<< HEAD
                 expired_at: response.data.expires_at, 
+=======
+                expired_at: response.data.expires_at,
+>>>>>>> 431e1f3 (fix: QRIS template path for production environment)
             },
         };
     } catch (error: any) {
@@ -103,8 +122,14 @@ export async function generateQRImage(qrString: string): Promise<Buffer> {
     });
 
     try {
+        const templatePath = getTemplatePath();
+        if (!templatePath) {
+            console.warn("Template not found, using plain QR code");
+            return qrBuffer;
+        }
+
         // Load template and overlay QR code
-        const result = await sharp(TEMPLATE_PATH)
+        const result = await sharp(templatePath)
             .composite([
                 {
                     input: qrBuffer,
