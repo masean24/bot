@@ -39,6 +39,8 @@ import {
     handleAdminProducts,
     handleAdminOrders,
     handleAddProductStart,
+    handleAddCategoryStart,
+    handleSelectParentForProduct,
     handleAddStockStart,
     handleAdminTextInput,
     handleAdminProductDetail,
@@ -270,9 +272,19 @@ bot.callbackQuery("noop", async (ctx) => {
 bot.callbackQuery("admin:stats", handleAdminStats);
 bot.callbackQuery("admin:products", handleAdminProducts);
 bot.callbackQuery("admin:orders", handleAdminOrders);
+bot.callbackQuery("admin:add_category", handleAddCategoryStart);
 bot.callbackQuery("admin:add_product", handleAddProductStart);
 bot.callbackQuery("admin:add_stock", handleAddStockStart);
 bot.callbackQuery("admin:back", handleAdminBack);
+bot.callbackQuery("admin:vouchers", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await handleVoucherCommand(ctx);
+});
+bot.callbackQuery("admin:users", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await handleUsersCommand(ctx);
+});
+bot.callbackQuery(/^admin:selectparent:/, handleSelectParentForProduct);
 
 // Admin callbacks - product CRUD
 bot.callbackQuery(/^admin:product:/, handleAdminProductDetail);

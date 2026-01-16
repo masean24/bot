@@ -449,19 +449,86 @@ export async function handleAdminOrders(ctx: Context): Promise<void> {
 }
 
 /**
- * Handle add product - start
+ * Handle add category - start (create parent product)
  */
-export async function handleAddProductStart(ctx: Context): Promise<void> {
+export async function handleAddCategoryStart(ctx: Context): Promise<void> {
     await ctx.answerCallbackQuery();
 
     adminState.set(ctx.from!.id, {
-        step: "add_product_name",
+        step: "add_category_name",
         data: {},
     });
 
     await ctx.editMessageText(
-        "➕ *Tambah Produk Baru*\n\nKirim nama produk:",
+        `➕ *Tambah Kategori Baru*\n\nKategori adalah grup produk \\(misal: ChatGpt, Canva, dll\\)\\.\n\nKirim nama kategori:`,
         { parse_mode: "MarkdownV2" }
+    );
+}
+
+/**
+ * Handle add product - start (requires selecting category first)
+ */
+export async function handleAddProductStart(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+
+    // Get parent products (categories)
+    const { getParentProducts } = await import("../../services/supabase.js");
+    const parents = await getParentProducts();
+
+    if (parents.length === 0) {
+        await ctx.editMessageText(
+            `❌ *Belum ada kategori\\!*\n\nBuat kategori dulu sebelum menambah produk\\.\n\nKlik "➕ Tambah Kategori" di menu admin\\.`,
+            {
+                parse_mode: "MarkdownV2",
+                reply_markup: adminMenuKeyboard()
+            }
+        );
+        return;
+    }
+
+    // Build category selection keyboard
+    const keyboard = new InlineKeyboard();
+    parents.forEach((p, i) => {
+        keyboard.text(`📁 ${p.name}`, `admin:selectparent:${p.id}`);
+        if ((i + 1) % 2 === 0) keyboard.row();
+    });
+    keyboard.row().text("🔙 Kembali", "admin:back");
+
+    await ctx.editMessageText(
+        `➕ *Tambah Produk Baru*\n\nPilih kategori untuk produk ini:`,
+        {
+            parse_mode: "Markdown",
+            reply_markup: keyboard
+        }
+    );
+}
+
+/**
+ * Handle parent category selection for new product
+ */
+export async function handleSelectParentForProduct(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    const parentId = data.replace("admin:selectparent:", "");
+    const { getProductById } = await import("../../services/supabase.js");
+    const parent = await getProductById(parentId);
+
+    if (!parent) {
+        await ctx.answerCallbackQuery({ text: "Kategori tidak ditemukan", show_alert: true });
+        return;
+    }
+
+    adminState.set(ctx.from!.id, {
+        step: "add_product_name",
+        data: { parentId, parentName: parent.name },
+    });
+
+    await ctx.editMessageText(
+        `➕ *Tambah Produk di ${parent.name}*\n\nKirim nama produk/variasi:`,
+        { parse_mode: "Markdown" }
     );
 }
 
@@ -507,6 +574,36 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
     if (!text) return;
 
     switch (state.step) {
+        case "add_category_name":
+            state.data.name = text;
+            state.step = "add_category_description";
+            adminState.set(userId, state);
+            await ctx.reply("✅ Nama kategori: " + text + "\n\nSekarang kirim deskripsi kategori:");
+            break;
+
+        case "add_category_description":
+            state.data.description = text;
+
+            try {
+                const product = await createProduct({
+                    name: state.data.name,
+                    description: state.data.description,
+                    price: 0, // Categories don't have price
+                    is_active: true,
+                    parent_id: null, // This is a parent/category
+                });
+
+                adminState.delete(userId);
+                await ctx.reply(
+                    `✅ Kategori berhasil dibuat!\n\n📁 ${product.name}\n📝 ${product.description}\n\nSekarang tambah produk di kategori ini via menu admin.`,
+                    { reply_markup: adminMenuKeyboard() }
+                );
+            } catch (e) {
+                await ctx.reply("❌ Gagal membuat kategori. Coba lagi.");
+                adminState.delete(userId);
+            }
+            break;
+
         case "add_product_name":
             state.data.name = text;
             state.step = "add_product_description";
@@ -534,12 +631,13 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     description: state.data.description,
                     price: price,
                     is_active: true,
-                    parent_id: null,
+                    parent_id: state.data.parentId || null, // Use parent from state
                 });
 
+                const parentInfo = state.data.parentName ? `\n📁 Kategori: ${state.data.parentName}` : "";
                 adminState.delete(userId);
                 await ctx.reply(
-                    `✅ Produk berhasil ditambahkan!\n\n📦 ${product.name}\n💰 ${formatRupiah(product.price)}\n\nSekarang tambahkan stok via menu admin.`,
+                    `✅ Produk berhasil ditambahkan!\n\n📦 ${product.name}${parentInfo}\n💰 ${formatRupiah(product.price)}\n\nSekarang tambahkan stok via menu admin.`,
                     { reply_markup: adminMenuKeyboard() }
                 );
             } catch (e) {

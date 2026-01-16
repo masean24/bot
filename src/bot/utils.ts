@@ -123,9 +123,13 @@ export function adminMenuKeyboard(): InlineKeyboard {
         .text("📊 Statistik", "admin:stats")
         .row()
         .text("📋 Order Terbaru", "admin:orders")
+        .text("🎟️ Voucher", "admin:vouchers")
+        .row()
+        .text("➕ Tambah Kategori", "admin:add_category")
         .text("➕ Tambah Produk", "admin:add_product")
         .row()
-        .text("📤 Tambah Stok", "admin:add_stock");
+        .text("📤 Tambah Stok", "admin:add_stock")
+        .text("👥 Users", "admin:users");
 }
 
 /**
