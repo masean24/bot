@@ -6,6 +6,7 @@ export interface Product {
     price: number;
     is_active: boolean;
     created_at: string;
+    parent_id: string | null;
 }
 
 // Credential for digital product

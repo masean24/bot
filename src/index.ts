@@ -8,6 +8,7 @@ import {
     handleHelp,
     handleHelpMenu,
     handleListProdukButton,
+    handleCategoryPage,
     handleCekSaldoButton,
     handleRiwayatOrderButton,
     handleReferralCommand,
@@ -135,7 +136,7 @@ bot.command("stats", handleStatsDetailedCommand);
 bot.command("export", handleExportCommand);
 bot.command("mt", handleMaintenanceCommand);
 bot.command("referral", handleReferralCommand);
-bot.command("produk", handleListProdukButton);
+bot.command("produk", async (ctx) => handleListProdukButton(ctx));
 bot.command("bantuan", handleHelp);
 
 // Deposit commands
@@ -232,6 +233,13 @@ bot.callbackQuery("menu:chat", async (ctx) => {
     await handleStartChat(ctx);
 });
 
+// Category selection (parent products)
+bot.callbackQuery(/^category:/, async (ctx) => {
+    const { handleCategorySelect } = await import("./bot/handlers/order.js");
+    await handleCategorySelect(ctx);
+});
+bot.callbackQuery(/^catpage:/, handleCategoryPage);
+
 // Product selection
 bot.callbackQuery(/^product:/, handleProductSelect);
 bot.callbackQuery(/^buy:/, handleBuyProduct);
@@ -291,36 +299,45 @@ bot.callbackQuery("admin:chats", handleAdminChatsCallback);
 // ============ TEXT MESSAGES ============
 
 // Reply keyboard button handlers (updated names without emoji)
-bot.hears("List Produk", handleListProdukButton);
-bot.hears("🛒 List Produk", handleListProdukButton); // Legacy support
+bot.hears("List Produk", async (ctx) => handleListProdukButton(ctx));
+bot.hears("🛒 List Produk", async (ctx) => handleListProdukButton(ctx)); // Legacy support
 bot.hears("Cek Saldo", handleCekSaldoButton);
 bot.hears("💰 Cek Saldo", handleCekSaldoButton); // Legacy support
 bot.hears("📋 Riwayat Order", handleRiwayatOrderButton);
 bot.hears("❓ Bantuan", handleHelp);
 bot.hears("⟳ BANTUAN", handleHelp);
 
-// Number button handlers for quick product selection
+// Number button handlers for quick category selection
 bot.hears(/^(\d{1,2})$/, async (ctx) => {
     const num = parseInt(ctx.match[1]);
     if (num < 1 || num > 50) return; // Safety limit
 
     // Import needed function
-    const { getActiveProducts } = await import("./services/supabase.js");
-    const products = await getActiveProducts();
+    const { getParentProducts, getVariationsByParent } = await import("./services/supabase.js");
+    const parents = await getParentProducts();
 
-    // Check if number is valid for products
-    if (num > products.length) {
-        await ctx.reply(`❌ Produk nomor ${num} tidak tersedia. Maksimal: ${products.length}`);
+    // Check if number is valid for parent products
+    if (num > parents.length) {
+        await ctx.reply(`❌ Produk nomor ${num} tidak tersedia. Maksimal: ${parents.length}`);
         return;
     }
 
-    // Get the product by index (num - 1)
-    const product = products[num - 1];
-    if (!product) return;
+    // Get the parent by index (num - 1)
+    const parent = parents[num - 1];
+    if (!parent) return;
 
-    // Trigger product selection
-    const { handleProductSelectByNumber } = await import("./bot/handlers/order.js");
-    await handleProductSelectByNumber(ctx, product.id);
+    // Check if this parent has variations
+    const variations = await getVariationsByParent(parent.id);
+
+    if (variations.length > 0) {
+        // Show category detail with variations
+        const { handleCategoryDetail } = await import("./bot/handlers/order.js");
+        await handleCategoryDetail(ctx, parent.id);
+    } else {
+        // Standalone product - show product detail directly
+        const { handleProductSelectByNumber } = await import("./bot/handlers/order.js");
+        await handleProductSelectByNumber(ctx, parent.id);
+    }
 });
 
 // Handle text input for voucher codes, chat, and admin multi-step operations

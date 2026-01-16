@@ -213,51 +213,65 @@ Kamu dapat bonus 5% dari setiap transaksi teman yang kamu refer.`, {
 }
 
 /**
- * Handle "List Produk" reply keyboard button
+ * Handle "List Produk" reply keyboard button - show parent products (categories)
  */
-export async function handleListProdukButton(ctx: Context): Promise<void> {
-    const products = await getActiveProducts();
+export async function handleListProdukButton(ctx: Context, page: number = 1): Promise<void> {
+    const { getParentProducts, getParentSoldCount, getVariationsByParent, getProductStock } = await import("../../services/supabase.js");
 
-    if (products.length === 0) {
+    const parents = await getParentProducts();
+
+    if (parents.length === 0) {
         await ctx.reply("😔 Belum ada produk tersedia saat ini.");
         return;
     }
 
     // Pagination settings
     const itemsPerPage = 10;
-    const totalPages = Math.ceil(products.length / itemsPerPage);
-    const currentPage = 1; // For now, hardcoded to page 1
+    const totalPages = Math.ceil(parents.length / itemsPerPage);
+    const currentPage = Math.max(1, Math.min(page, totalPages));
 
     const startIdx = (currentPage - 1) * itemsPerPage;
-    const endIdx = Math.min(startIdx + itemsPerPage, products.length);
-    const pageProducts = products.slice(startIdx, endIdx);
+    const endIdx = Math.min(startIdx + itemsPerPage, parents.length);
+    const pageParents = parents.slice(startIdx, endIdx);
 
     // Build product list with box format
-    let message = `╭ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ╮\n`;
+    let message = `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
     message += `┊  LIST PRODUK ${BOT_NAME}\n`;
-    message += `┊- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n`;
+    message += `┊- - - - - - - - - - - - - - - - - - - - - - \n`;
 
-    for (let i = startIdx; i < endIdx; i++) {
-        const product = products[i];
-        const stock = await getProductStock(product.id);
-        const num = i + 1;
-        message += `┊ [${num}] ${product.name} (${stock})\n`;
+    for (let i = 0; i < pageParents.length; i++) {
+        const parent = pageParents[i];
+        const variations = await getVariationsByParent(parent.id);
+
+        // Calculate total stock from all variations
+        let totalStock = 0;
+        for (const v of variations) {
+            totalStock += await getProductStock(v.id);
+        }
+
+        // If no variations, show own stock (for standalone products)
+        if (variations.length === 0) {
+            totalStock = await getProductStock(parent.id);
+        }
+
+        const num = startIdx + i + 1;
+        message += `┊ [${num}] ${parent.name} (${totalStock})\n`;
     }
 
-    message += `╰ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ╯\n\n`;
-    message += `➝ Ketik nomor produk (1-${products.length}) untuk melanjutkan.\n`;
+    message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n\n`;
+    message += `➝ Ketik nomor produk (${startIdx + 1}-${endIdx}) untuk melanjutkan.\n`;
     message += `Halaman ${currentPage} dari ${totalPages}`;
 
     // Build number button grid (5 per row)
     const keyboard = new InlineKeyboard();
     const buttonsPerRow = 5;
 
-    for (let i = startIdx; i < endIdx; i++) {
-        const num = i + 1;
-        const product = products[i];
-        keyboard.text(`${num}`, `product:${product.id}`);
+    for (let i = 0; i < pageParents.length; i++) {
+        const num = startIdx + i + 1;
+        const parent = pageParents[i];
+        keyboard.text(`${num}`, `category:${parent.id}`);
 
-        if ((i - startIdx + 1) % buttonsPerRow === 0 && i < endIdx - 1) {
+        if ((i + 1) % buttonsPerRow === 0 && i < pageParents.length - 1) {
             keyboard.row();
         }
     }
@@ -266,10 +280,10 @@ export async function handleListProdukButton(ctx: Context): Promise<void> {
     if (totalPages > 1) {
         keyboard.row();
         if (currentPage > 1) {
-            keyboard.text("◀️ Prev", `prodpage:${currentPage - 1}`);
+            keyboard.text("◀ Prev", `catpage:${currentPage - 1}`);
         }
         if (currentPage < totalPages) {
-            keyboard.text("Next ▶️", `prodpage:${currentPage + 1}`);
+            keyboard.text("Next ▶", `catpage:${currentPage + 1}`);
         }
     }
 
@@ -291,6 +305,20 @@ export async function handleListProdukButton(ctx: Context): Promise<void> {
             reply_markup: keyboard,
         });
     }
+}
+
+/**
+ * Handle category pagination callback
+ */
+export async function handleCategoryPage(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+    await ctx.deleteMessage();
+
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    const page = parseInt(data.replace("catpage:", ""));
+    await handleListProdukButton(ctx, page);
 }
 
 /**

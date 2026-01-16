@@ -18,6 +18,50 @@ export async function getActiveProducts(): Promise<Product[]> {
     return data || [];
 }
 
+// Get parent products only (categories) - products with no parent_id
+export async function getParentProducts(): Promise<Product[]> {
+    const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("is_active", true)
+        .is("parent_id", null)
+        .order("name");
+
+    if (error) throw error;
+    return data || [];
+}
+
+// Get variations for a parent product
+export async function getVariationsByParent(parentId: string): Promise<Product[]> {
+    const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("is_active", true)
+        .eq("parent_id", parentId)
+        .order("price");
+
+    if (error) throw error;
+    return data || [];
+}
+
+// Get total sold count for a parent (sum of all variations)
+export async function getParentSoldCount(parentId: string): Promise<number> {
+    // First get all variation IDs
+    const variations = await getVariationsByParent(parentId);
+    if (variations.length === 0) return 0;
+
+    const variationIds = variations.map(v => v.id);
+
+    const { count, error } = await supabase
+        .from("credentials")
+        .select("*", { count: "exact", head: true })
+        .in("product_id", variationIds)
+        .eq("is_sold", true);
+
+    if (error) return 0;
+    return count || 0;
+}
+
 export async function getProductById(id: string): Promise<Product | null> {
     const { data, error } = await supabase
         .from("products")

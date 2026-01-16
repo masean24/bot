@@ -40,6 +40,99 @@ export function getBotInstance(): Bot | null {
 }
 
 /**
+ * Handle category detail - show parent product info with variations list
+ */
+export async function handleCategoryDetail(ctx: Context, parentId: string): Promise<void> {
+    const { getProductById, getVariationsByParent, getProductStock, getParentSoldCount } = await import("../../services/supabase.js");
+
+    const parent = await getProductById(parentId);
+    if (!parent) {
+        await ctx.reply("❌ Kategori tidak ditemukan.", {
+            reply_markup: backToMainKeyboard(),
+        });
+        return;
+    }
+
+    const variations = await getVariationsByParent(parentId);
+    const soldCount = await getParentSoldCount(parentId);
+
+    // Get current time for refresh timestamp
+    const now = new Date().toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
+
+    // Build message with category info
+    let message = `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
+    message += `┊・ Produk: ${parent.name}\n`;
+    message += `┊・ Stok Terjual: ${soldCount}\n`;
+    message += `┊・ Desk: ${parent.description || "-"}\n`;
+    message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n\n`;
+
+    // Add variations list
+    message += `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
+    message += `┊ Variasi, Harga & Stok:\n`;
+
+    // Build keyboard with variation buttons
+    const keyboard = new InlineKeyboard();
+
+    if (variations.length === 0) {
+        message += `┊・ Tidak ada variasi tersedia\n`;
+    } else {
+        for (const v of variations) {
+            const stock = await getProductStock(v.id);
+            message += `┊・ ${v.name}: ${formatRupiah(v.price)} - Stok: ${stock}\n`;
+        }
+    }
+
+    message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n`;
+    message += `╰➤ Refresh at ${now} WIB`;
+
+    // Add variation buttons (2 per row max)
+    for (let i = 0; i < variations.length; i++) {
+        const v = variations[i];
+        const stock = await getProductStock(v.id);
+        const label = stock > 0 ? v.name : `${v.name} (Habis)`;
+        keyboard.text(label, `product:${v.id}`);
+
+        if ((i + 1) % 2 === 0 && i < variations.length - 1) {
+            keyboard.row();
+        }
+    }
+
+    // Add refresh and back buttons
+    keyboard.row();
+    keyboard.text("🔄 Refresh", `category:${parentId}`);
+    keyboard.text("🔙 Kembali", "back:products");
+
+    await ctx.reply(message, {
+        reply_markup: keyboard,
+    });
+}
+
+/**
+ * Handle category selection callback (from inline button)
+ */
+export async function handleCategorySelect(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    const parentId = data.replace("category:", "");
+
+    // Delete previous message and show category detail
+    try {
+        await ctx.deleteMessage();
+    } catch (e) {
+        // Message might already be deleted
+    }
+
+    await handleCategoryDetail(ctx, parentId);
+}
+
+/**
  * Handle product selection by number (from reply keyboard)
  */
 export async function handleProductSelectByNumber(ctx: Context, productId: string): Promise<void> {

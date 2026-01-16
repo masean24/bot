@@ -534,6 +534,7 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     description: state.data.description,
                     price: price,
                     is_active: true,
+                    parent_id: null,
                 });
 
                 adminState.delete(userId);
