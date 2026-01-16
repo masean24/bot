@@ -665,15 +665,14 @@ export async function handleViewDetailedStock(ctx: Context): Promise<void> {
         .select("*")
         .eq("product_id", productId)
         .eq("is_sold", false)
-        .order("created_at", { ascending: false })
         .limit(20);
 
     console.log(`[DEBUG] handleViewDetailedStock - productId: ${productId}, error: ${error?.message}, credentials count: ${credentials?.length}`);
 
     if (error) {
         console.error("[DEBUG] Credentials query error:", error);
-        await ctx.editMessageText(`📋 *Stok ${product.name}*\n\n❌ Error: ${error.message}`, {
-            parse_mode: "Markdown",
+        const escapedError = (error.message || "Unknown error").replace(/[_*[\]()~`>#+=|{}.!-]/g, "\\$&");
+        await ctx.editMessageText(`📋 Stok ${product.name}\n\n❌ Error: ${escapedError}`, {
             reply_markup: new InlineKeyboard().text("🔙 Kembali", `admin:product:${productId}`),
         });
         return;
