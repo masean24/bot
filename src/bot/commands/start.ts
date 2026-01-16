@@ -233,9 +233,9 @@ export async function handleListProdukButton(ctx: Context): Promise<void> {
     const pageProducts = products.slice(startIdx, endIdx);
 
     // Build product list with box format
-    let message = `╭ - - - - - - - - - - - - - - - - - - - ╮\n`;
+    let message = `╭ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ╮\n`;
     message += `┊  LIST PRODUK ${BOT_NAME}\n`;
-    message += `┊- - - - - - - - - - - - - - - - - - - - -\n`;
+    message += `┊- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n`;
 
     for (let i = startIdx; i < endIdx; i++) {
         const product = products[i];
@@ -244,7 +244,7 @@ export async function handleListProdukButton(ctx: Context): Promise<void> {
         message += `┊ [${num}] ${product.name} (${stock})\n`;
     }
 
-    message += `╰ - - - - - - - - - - - - - - - - - - - ╯\n\n`;
+    message += `╰ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ╯\n\n`;
     message += `➝ Ketik nomor produk (1-${products.length}) untuk melanjutkan.\n`;
     message += `Halaman ${currentPage} dari ${totalPages}`;
 

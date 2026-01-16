@@ -664,12 +664,23 @@ export async function handleViewDetailedStock(ctx: Context): Promise<void> {
         .from("credentials")
         .select("*")
         .eq("product_id", productId)
-        .order("is_sold", { ascending: true })
+        .eq("is_sold", false)
         .order("created_at", { ascending: false })
         .limit(20);
 
-    if (error || !credentials || credentials.length === 0) {
-        await ctx.editMessageText(`📋 *Stok ${product.name}*\n\nTidak ada kredensial.`, {
+    console.log(`[DEBUG] handleViewDetailedStock - productId: ${productId}, error: ${error?.message}, credentials count: ${credentials?.length}`);
+
+    if (error) {
+        console.error("[DEBUG] Credentials query error:", error);
+        await ctx.editMessageText(`📋 *Stok ${product.name}*\n\n❌ Error: ${error.message}`, {
+            parse_mode: "Markdown",
+            reply_markup: new InlineKeyboard().text("🔙 Kembali", `admin:product:${productId}`),
+        });
+        return;
+    }
+
+    if (!credentials || credentials.length === 0) {
+        await ctx.editMessageText(`📋 *Stok ${product.name}*\n\nTidak ada kredensial tersedia.\n\n(Product ID: ${productId.substring(0, 8)}...)`, {
             parse_mode: "Markdown",
             reply_markup: new InlineKeyboard().text("🔙 Kembali", `admin:product:${productId}`),
         });
@@ -678,22 +689,18 @@ export async function handleViewDetailedStock(ctx: Context): Promise<void> {
 
     let message = `📋 *Detail Stok: ${product.name}*\n\n`;
 
-    const available = credentials.filter(c => !c.is_sold);
-    const sold = credentials.filter(c => c.is_sold);
-
-    message += `✅ Available: ${available.length}\n`;
-    message += `❌ Sold: ${sold.length}\n\n`;
+    message += `✅ Tersedia: ${credentials.length}\n\n`;
     message += `━━━ Kredensial Tersedia ━━━\n\n`;
 
-    available.slice(0, 5).forEach((c, idx) => {
+    credentials.slice(0, 5).forEach((c, idx) => {
         message += `${idx + 1}. ${c.email}\n`;
         message += `   🔑 ${c.password}\n`;
         if (c.pin && c.pin !== "-") message += `   🔢 ${c.pin}\n`;
         message += "\n";
     });
 
-    if (available.length > 5) {
-        message += `... dan ${available.length - 5} lainnya\n`;
+    if (credentials.length > 5) {
+        message += `... dan ${credentials.length - 5} lainnya\n`;
     }
 
     await ctx.editMessageText(message, {
