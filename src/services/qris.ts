@@ -61,11 +61,7 @@ export async function createTransaction(
                 amount_total: response.data.amount_total,
                 qris_content: response.data.qris_content,
                 qris_image_url: response.data.qris_image_url,
-<<<<<<< HEAD
-                expired_at: response.data.expires_at, 
-=======
                 expired_at: response.data.expires_at,
->>>>>>> 431e1f3 (fix: QRIS template path for production environment)
             },
         };
     } catch (error: any) {
