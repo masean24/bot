@@ -109,6 +109,7 @@ router.post("/products", authMiddleware, async (req, res) => {
             price: parseInt(price),
             is_active: is_active !== false,
             parent_id: null,
+            is_category: false,
         });
 
         res.status(201).json(product);

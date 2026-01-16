@@ -213,65 +213,60 @@ Kamu dapat bonus 5% dari setiap transaksi teman yang kamu refer.`, {
 }
 
 /**
- * Handle "List Produk" reply keyboard button - show parent products (categories)
+ * Handle "List Produk" reply keyboard button - show categories
  */
 export async function handleListProdukButton(ctx: Context, page: number = 1): Promise<void> {
-    const { getParentProducts, getParentSoldCount, getVariationsByParent, getProductStock } = await import("../../services/supabase.js");
+    const { getCategories, getProductsByCategory, getProductStock } = await import("../../services/supabase.js");
 
-    const parents = await getParentProducts();
+    const categories = await getCategories();
 
-    if (parents.length === 0) {
-        await ctx.reply("😔 Belum ada produk tersedia saat ini.");
+    if (categories.length === 0) {
+        await ctx.reply("😔 Belum ada kategori tersedia saat ini.");
         return;
     }
 
     // Pagination settings
     const itemsPerPage = 10;
-    const totalPages = Math.ceil(parents.length / itemsPerPage);
+    const totalPages = Math.ceil(categories.length / itemsPerPage);
     const currentPage = Math.max(1, Math.min(page, totalPages));
 
     const startIdx = (currentPage - 1) * itemsPerPage;
-    const endIdx = Math.min(startIdx + itemsPerPage, parents.length);
-    const pageParents = parents.slice(startIdx, endIdx);
+    const endIdx = Math.min(startIdx + itemsPerPage, categories.length);
+    const pageCategories = categories.slice(startIdx, endIdx);
 
-    // Build product list with box format
+    // Build category list with box format
     let message = `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
-    message += `┊  LIST PRODUK ${BOT_NAME}\n`;
+    message += `┊  LIST KATEGORI ${BOT_NAME}\n`;
     message += `┊- - - - - - - - - - - - - - - - - - - - - - \n`;
 
-    for (let i = 0; i < pageParents.length; i++) {
-        const parent = pageParents[i];
-        const variations = await getVariationsByParent(parent.id);
+    for (let i = 0; i < pageCategories.length; i++) {
+        const cat = pageCategories[i];
+        const products = await getProductsByCategory(cat.id);
 
-        // Calculate total stock from all variations
+        // Calculate total stock from all products in category
         let totalStock = 0;
-        for (const v of variations) {
-            totalStock += await getProductStock(v.id);
-        }
-
-        // If no variations, show own stock (for standalone products)
-        if (variations.length === 0) {
-            totalStock = await getProductStock(parent.id);
+        for (const p of products) {
+            totalStock += await getProductStock(p.id);
         }
 
         const num = startIdx + i + 1;
-        message += `┊ [${num}] ${parent.name} (${totalStock})\n`;
+        message += `┊ [${num}] ${cat.name} (${totalStock})\n`;
     }
 
     message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n\n`;
-    message += `➝ Ketik nomor produk (${startIdx + 1}-${endIdx}) untuk melanjutkan.\n`;
+    message += `➝ Ketik nomor kategori (${startIdx + 1}-${endIdx}) untuk melanjutkan.\n`;
     message += `Halaman ${currentPage} dari ${totalPages}`;
 
     // Build number button grid (5 per row)
     const keyboard = new InlineKeyboard();
     const buttonsPerRow = 5;
 
-    for (let i = 0; i < pageParents.length; i++) {
+    for (let i = 0; i < pageCategories.length; i++) {
         const num = startIdx + i + 1;
-        const parent = pageParents[i];
-        keyboard.text(`${num}`, `category:${parent.id}`);
+        const cat = pageCategories[i];
+        keyboard.text(`${num}`, `category:${cat.id}`);
 
-        if ((i + 1) % buttonsPerRow === 0 && i < pageParents.length - 1) {
+        if ((i + 1) % buttonsPerRow === 0 && i < pageCategories.length - 1) {
             keyboard.row();
         }
     }

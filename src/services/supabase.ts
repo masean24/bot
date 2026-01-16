@@ -18,7 +18,20 @@ export async function getActiveProducts(): Promise<Product[]> {
     return data || [];
 }
 
-// Get parent products only (categories) - products with no parent_id
+// Get categories only (is_category = true)
+export async function getCategories(): Promise<Product[]> {
+    const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("is_active", true)
+        .eq("is_category", true)
+        .order("name");
+
+    if (error) throw error;
+    return data || [];
+}
+
+// Get parent products only (for backwards compatibility) - products with no parent_id
 export async function getParentProducts(): Promise<Product[]> {
     const { data, error } = await supabase
         .from("products")
@@ -31,17 +44,23 @@ export async function getParentProducts(): Promise<Product[]> {
     return data || [];
 }
 
-// Get variations for a parent product
-export async function getVariationsByParent(parentId: string): Promise<Product[]> {
+// Get products under a category (parent_id = categoryId)
+export async function getProductsByCategory(categoryId: string): Promise<Product[]> {
     const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("is_active", true)
-        .eq("parent_id", parentId)
-        .order("price");
+        .eq("parent_id", categoryId)
+        .eq("is_category", false)
+        .order("name");
 
     if (error) throw error;
     return data || [];
+}
+
+// Get variations for a parent product (legacy, same as getProductsByCategory)
+export async function getVariationsByParent(parentId: string): Promise<Product[]> {
+    return getProductsByCategory(parentId);
 }
 
 // Get total sold count for a parent (sum of all variations)

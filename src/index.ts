@@ -325,31 +325,22 @@ bot.hears(/^(\d{1,2})$/, async (ctx) => {
     if (num < 1 || num > 50) return; // Safety limit
 
     // Import needed function
-    const { getParentProducts, getVariationsByParent } = await import("./services/supabase.js");
-    const parents = await getParentProducts();
+    const { getCategories } = await import("./services/supabase.js");
+    const categories = await getCategories();
 
-    // Check if number is valid for parent products
-    if (num > parents.length) {
-        await ctx.reply(`❌ Produk nomor ${num} tidak tersedia. Maksimal: ${parents.length}`);
+    // Check if number is valid for categories
+    if (num > categories.length) {
+        await ctx.reply(`❌ Kategori nomor ${num} tidak tersedia. Maksimal: ${categories.length}`);
         return;
     }
 
-    // Get the parent by index (num - 1)
-    const parent = parents[num - 1];
-    if (!parent) return;
+    // Get the category by index (num - 1)
+    const category = categories[num - 1];
+    if (!category) return;
 
-    // Check if this parent has variations
-    const variations = await getVariationsByParent(parent.id);
-
-    if (variations.length > 0) {
-        // Show category detail with variations
-        const { handleCategoryDetail } = await import("./bot/handlers/order.js");
-        await handleCategoryDetail(ctx, parent.id);
-    } else {
-        // Standalone product - show product detail directly
-        const { handleProductSelectByNumber } = await import("./bot/handlers/order.js");
-        await handleProductSelectByNumber(ctx, parent.id);
-    }
+    // Show category detail with products
+    const { handleCategoryDetail } = await import("./bot/handlers/order.js");
+    await handleCategoryDetail(ctx, category.id);
 });
 
 // Handle text input for voucher codes, chat, and admin multi-step operations

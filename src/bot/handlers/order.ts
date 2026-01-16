@@ -40,21 +40,21 @@ export function getBotInstance(): Bot | null {
 }
 
 /**
- * Handle category detail - show parent product info with variations list
+ * Handle category detail - show category info with products list
  */
-export async function handleCategoryDetail(ctx: Context, parentId: string): Promise<void> {
-    const { getProductById, getVariationsByParent, getProductStock, getParentSoldCount } = await import("../../services/supabase.js");
+export async function handleCategoryDetail(ctx: Context, categoryId: string): Promise<void> {
+    const { getProductById, getProductsByCategory, getProductStock, getParentSoldCount } = await import("../../services/supabase.js");
 
-    const parent = await getProductById(parentId);
-    if (!parent) {
+    const category = await getProductById(categoryId);
+    if (!category) {
         await ctx.reply("❌ Kategori tidak ditemukan.", {
             reply_markup: backToMainKeyboard(),
         });
         return;
     }
 
-    const variations = await getVariationsByParent(parentId);
-    const soldCount = await getParentSoldCount(parentId);
+    const products = await getProductsByCategory(categoryId);
+    const soldCount = await getParentSoldCount(categoryId);
 
     // Get current time for refresh timestamp
     const now = new Date().toLocaleTimeString("id-ID", {
@@ -65,45 +65,49 @@ export async function handleCategoryDetail(ctx: Context, parentId: string): Prom
 
     // Build message with category info
     let message = `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
-    message += `┊・ Produk: ${parent.name}\n`;
+    message += `┊・ Kategori: ${category.name}\n`;
     message += `┊・ Stok Terjual: ${soldCount}\n`;
-    message += `┊・ Desk: ${parent.description || "-"}\n`;
+    message += `┊・ Desk: ${category.description || "-"}\n`;
     message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n\n`;
 
-    // Add variations list
-    message += `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
-    message += `┊ Variasi, Harga & Stok:\n`;
-
-    // Build keyboard with variation buttons
+    // Build keyboard with product buttons
     const keyboard = new InlineKeyboard();
 
-    if (variations.length === 0) {
-        message += `┊・ Tidak ada variasi tersedia\n`;
+    if (products.length === 0) {
+        // Category has no products yet
+        message += `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
+        message += `┊ Belum ada produk di kategori ini.\n`;
+        message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n`;
     } else {
-        for (const v of variations) {
-            const stock = await getProductStock(v.id);
-            message += `┊・ ${v.name}: ${formatRupiah(v.price)} - Stok: ${stock}\n`;
+        // Add products list
+        message += `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
+        message += `┊ Produk, Harga & Stok:\n`;
+
+        for (const p of products) {
+            const stock = await getProductStock(p.id);
+            message += `┊・ ${p.name}: ${formatRupiah(p.price)} - Stok: ${stock}\n`;
+        }
+
+        message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n`;
+
+        // Add product buttons (2 per row max)
+        for (let i = 0; i < products.length; i++) {
+            const p = products[i];
+            const stock = await getProductStock(p.id);
+            const label = stock > 0 ? p.name : `${p.name} (Habis)`;
+            keyboard.text(label, `product:${p.id}`);
+
+            if ((i + 1) % 2 === 0 && i < products.length - 1) {
+                keyboard.row();
+            }
         }
     }
 
-    message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n`;
     message += `╰➤ Refresh at ${now} WIB`;
-
-    // Add variation buttons (2 per row max)
-    for (let i = 0; i < variations.length; i++) {
-        const v = variations[i];
-        const stock = await getProductStock(v.id);
-        const label = stock > 0 ? v.name : `${v.name} (Habis)`;
-        keyboard.text(label, `product:${v.id}`);
-
-        if ((i + 1) % 2 === 0 && i < variations.length - 1) {
-            keyboard.row();
-        }
-    }
 
     // Add refresh and back buttons
     keyboard.row();
-    keyboard.text("🔄 Refresh", `category:${parentId}`);
+    keyboard.text("🔄 Refresh", `category:${categoryId}`);
     keyboard.text("🔙 Kembali", "back:products");
 
     await ctx.reply(message, {

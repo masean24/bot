@@ -591,6 +591,7 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     price: 0, // Categories don't have price
                     is_active: true,
                     parent_id: null, // This is a parent/category
+                    is_category: true, // Mark as category
                 });
 
                 adminState.delete(userId);
@@ -632,6 +633,7 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     price: price,
                     is_active: true,
                     parent_id: state.data.parentId || null, // Use parent from state
+                    is_category: false, // This is a product, not category
                 });
 
                 const parentInfo = state.data.parentName ? `\n📁 Kategori: ${state.data.parentName}` : "";

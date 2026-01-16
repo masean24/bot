@@ -7,6 +7,7 @@ export interface Product {
     is_active: boolean;
     created_at: string;
     parent_id: string | null;
+    is_category: boolean;
 }
 
 // Credential for digital product
