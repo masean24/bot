@@ -1945,14 +1945,26 @@ function getMiniAppHTML(): string {
           <div>\${p.description || '-'}</div>
         </div>
         <div class="flex gap-2 mt-4">
-          <button class="btn btn-success btn-block" onclick="showAddStockModal('\${p.id}')">📤 Tambah Stok</button>
+          <button class="btn btn-success btn-block" onclick="showAddStockModal('\${p.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Tambah Stok
+          </button>
         </div>
         <div class="flex gap-2 mt-2">
-          <button class="btn btn-ghost btn-block" onclick="showEditProductModal('\${p.id}')">✏️ Edit</button>
-          <button class="btn btn-ghost btn-block" onclick="showStockList('\${p.id}')">👁️ Lihat Stok</button>
+          <button class="btn btn-ghost btn-block" onclick="showEditProductModal('\${p.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Edit
+          </button>
+          <button class="btn btn-ghost btn-block" onclick="showStockList('\${p.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Lihat Stok
+          </button>
         </div>
         <div class="flex gap-2 mt-2">
-          <button class="btn btn-danger btn-block" onclick="deleteProduct('\${p.id}')">🗑️ Hapus</button>
+          <button class="btn btn-danger btn-block" onclick="deleteProduct('\${p.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            Hapus
+          </button>
         </div>
       \`);
     }
@@ -2070,6 +2082,101 @@ email2@test.com|pass456|-|-"></textarea>
         const res = await api('/products/' + productId + '/credentials/bulk', 'POST', { text });
         showToast(\`Berhasil menambah \${res.added} stok!\`);
         closeModal();
+        renderProducts();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+    
+    function showEditProductModal(productId) {
+      const p = productsData.find(x => x.id === productId);
+      if (!p) return;
+      
+      showModal('Edit Produk', \`
+        <form onsubmit="updateProduct(event, '\${productId}')">
+          <div class="form-group">
+            <label class="form-label">Nama Produk</label>
+            <input type="text" id="editProductName" class="form-input" value="\${p.name}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Harga</label>
+            <input type="number" id="editProductPrice" class="form-input" value="\${p.price}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Deskripsi</label>
+            <textarea id="editProductDesc" class="form-input" rows="3">\${p.description || ''}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status</label>
+            <select id="editProductStatus" class="form-input">
+              <option value="true" \${p.is_active ? 'selected' : ''}>Aktif</option>
+              <option value="false" \${!p.is_active ? 'selected' : ''}>Nonaktif</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Simpan Perubahan</button>
+        </form>
+      \`);
+    }
+    
+    async function updateProduct(e, productId) {
+      e.preventDefault();
+      try {
+        await api('/products/' + productId, 'PUT', {
+          name: document.getElementById('editProductName').value,
+          price: parseInt(document.getElementById('editProductPrice').value),
+          description: document.getElementById('editProductDesc').value,
+          is_active: document.getElementById('editProductStatus').value === 'true'
+        });
+        showToast('Produk berhasil diupdate!');
+        closeModal();
+        renderProducts();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+    
+    async function showStockList(productId) {
+      const p = productsData.find(x => x.id === productId);
+      if (!p) return;
+      
+      showModal('Stok - ' + p.name, '<div class="loading"><div class="spinner"></div>Loading...</div>');
+      
+      try {
+        const res = await api('/products/' + productId + '/credentials');
+        const creds = res.data || [];
+        
+        if (creds.length === 0) {
+          document.querySelector('.modal-body').innerHTML = '<div class="empty-state">Stok kosong</div>';
+          return;
+        }
+        
+        document.querySelector('.modal-body').innerHTML = \`
+          <div class="text-muted mb-3">Total: \${creds.length} item</div>
+          <div style="max-height:400px;overflow-y:auto">
+            \${creds.map((c, i) => \`
+              <div class="list-item" style="padding:8px 0;border-bottom:1px solid var(--border)">
+                <div class="list-item-main">
+                  <div style="font-size:12px;font-family:monospace">\${i+1}. \${c.email || '-'}</div>
+                  <div class="text-muted" style="font-size:11px">Pass: \${c.password || '-'} | PIN: \${c.pin || '-'}</div>
+                </div>
+                <button class="btn btn-sm btn-danger" onclick="deleteCredential('\${c.id}', '\${productId}')" style="padding:4px 8px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                </button>
+              </div>
+            \`).join('')}
+          </div>
+        \`;
+      } catch (err) {
+        document.querySelector('.modal-body').innerHTML = '<div class="empty-state">Error: ' + err.message + '</div>';
+      }
+    }
+    
+    async function deleteCredential(credId, productId) {
+      if (!confirm('Hapus credential ini?')) return;
+      try {
+        await api('/credentials/' + credId, 'DELETE');
+        showToast('Credential dihapus!');
+        showStockList(productId);
         renderProducts();
       } catch (err) {
         showToast(err.message, 'error');

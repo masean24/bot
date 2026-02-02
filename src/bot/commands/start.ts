@@ -52,6 +52,21 @@ export async function handleStart(ctx: Context): Promise<void> {
     const username = user?.username || "anonymous";
     const userId = user?.id || 0;
 
+    // Simpan/update user ke tabel bot_users (untuk broadcast)
+    try {
+        await supabase
+            .from("bot_users")
+            .upsert({
+                user_id: userId,
+                username: user?.username || null,
+                first_name: user?.first_name || null,
+                last_name: user?.last_name || null,
+                last_seen_at: new Date().toISOString(),
+            }, { onConflict: "user_id" });
+    } catch (e) {
+        console.error("Failed to save bot user:", e);
+    }
+
     // Check for referral code in deep link (e.g. /start REF123ABC)
     const startPayload = ctx.match as string | undefined;
     if (startPayload && startPayload.startsWith("REF")) {

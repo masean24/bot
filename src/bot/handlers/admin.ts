@@ -876,7 +876,7 @@ export async function handleExportStock(ctx: Context): Promise<void> {
 }
 
 /**
- * Handle /broadcast command - send message to all customers
+ * Handle /broadcast command - send message to ALL users yang pernah /start
  * Format: /broadcast message
  */
 export async function handleBroadcastCommand(ctx: Context): Promise<void> {
@@ -898,32 +898,22 @@ Format:
 Contoh:
 \`/broadcast 🔥 PROMO! Diskon 20% untuk semua produk hari ini!\`
 
-Pesan akan dikirim ke semua user yang pernah order.`, { parse_mode: "Markdown" });
+Pesan akan dikirim ke semua user yang pernah /start bot.`, { parse_mode: "Markdown" });
         return;
     }
 
-    // Get unique users who have ordered
-    const { data: orders, error } = await supabase
-        .from("orders")
-        .select("telegram_user_id, telegram_username")
-        .not("telegram_user_id", "is", null);
+    // Get semua user dari tabel bot_users (yang pernah /start)
+    const { data: users, error } = await supabase
+        .from("bot_users")
+        .select("user_id, username")
+        .eq("is_blocked", false);
 
-    if (error || !orders || orders.length === 0) {
+    if (error || !users || users.length === 0) {
         await ctx.reply("❌ Tidak ada user yang bisa dikirimi broadcast.");
         return;
     }
 
-    // Get unique users
-    const uniqueUsers = new Map<number, string>();
-    orders.forEach(o => {
-        if (o.telegram_user_id && !uniqueUsers.has(o.telegram_user_id)) {
-            uniqueUsers.set(o.telegram_user_id, o.telegram_username || "");
-        }
-    });
-
-    const userList = Array.from(uniqueUsers.entries());
-
-    await ctx.reply(`📢 Memulai broadcast ke ${userList.length} user...`);
+    await ctx.reply(`📢 Memulai broadcast ke ${users.length} user...`);
 
     let success = 0;
     let failed = 0;
@@ -937,14 +927,21 @@ Pesan akan dikirim ke semua user yang pernah order.`, { parse_mode: "Markdown" }
         return;
     }
 
-    for (const [userId] of userList) {
+    for (const user of users) {
         try {
-            await bot.api.sendMessage(userId, `📢 *BROADCAST*\n\n${message}`, {
+            await bot.api.sendMessage(user.user_id, `📢 *BROADCAST*\n\n${message}`, {
                 parse_mode: "Markdown",
             });
             success++;
-        } catch (e) {
+        } catch (e: any) {
             failed++;
+            // Jika user block bot, tandai di database
+            if (e?.error_code === 403) {
+                await supabase
+                    .from("bot_users")
+                    .update({ is_blocked: true })
+                    .eq("user_id", user.user_id);
+            }
         }
         // Small delay to avoid rate limits
         await new Promise(r => setTimeout(r, 50));
