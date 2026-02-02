@@ -9,6 +9,26 @@ Bot Telegram untuk auto order produk digital dengan pembayaran QRIS.
 - 🎟️ Voucher diskon
 - 💬 Live chat dengan admin
 - 📊 Dashboard admin
+- 📱 **Telegram Mini App** - Admin panel mobile-first
+
+## 📱 Telegram Mini App (Admin Only)
+
+Mini App adalah admin panel yang bisa diakses langsung dari Telegram. Fitur:
+
+- **Dashboard** - Statistik, grafik penjualan, top produk
+- **Products** - CRUD produk, kategori, stok
+- **Orders** - Lihat dan filter orders
+- **Users** - Customer insights, top buyers
+- **Analytics** - Grafik harian/mingguan/bulanan
+- **Voucher** - Kelola voucher diskon
+- **Activity Log** - Audit trail aktivitas admin
+- **Quick Replies** - Template balasan chat
+
+### Keamanan Mini App
+- ✅ Validasi berdasarkan **Telegram User ID** (bukan username)
+- ✅ Verifikasi HMAC signature dari Telegram
+- ✅ Button Mini App **HANYA muncul untuk admin**
+- ✅ Non-admin tidak bisa akses sama sekali
 
 ---
 
@@ -69,6 +89,7 @@ Jalankan SQL berikut di **Supabase SQL Editor**:
 1. `supabase/schema.sql`
 2. `supabase/schema_deposit.sql`
 3. `supabase/schema_chat.sql`
+4. `migrations/add_miniapp_tables.sql` (untuk Mini App)
 
 ---
 

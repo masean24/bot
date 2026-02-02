@@ -44,28 +44,54 @@ export function adminOnly(handler: (ctx: Context) => Promise<void>) {
 
 /**
  * Handle /admin command
+ * Menampilkan menu admin dengan WebApp button untuk Mini App
+ * Button Mini App HANYA muncul untuk admin (berdasarkan Telegram User ID)
  */
 export async function handleAdminCommand(ctx: Context): Promise<void> {
     if (!isAdmin(ctx.from?.id)) {
+        // Non-admin tidak melihat apapun - langsung tolak
         await ctx.reply("❌ Akses ditolak.");
         return;
     }
 
+    // Get WEBAPP_URL from environment or construct from WEBHOOK_URL
+    const { WEBHOOK_URL } = await import("../../config.js");
+    const webappUrl = process.env.MINIAPP_URL || `${WEBHOOK_URL}/miniapp`;
+
     const adminHelp = `🔐 *Panel Admin*
 
 📋 *Commands Admin:*
-├ /admin - Menu admin
-├ /stats - Statistik lengkap
-├ /export - Export order ke CSV
-├ /voucher - Kelola voucher
-├ /broadcast [msg] - Kirim ke semua user
-└ /users - Daftar customer
+├ /admin \\- Menu admin
+├ /stats \\- Statistik lengkap
+├ /export \\- Export order ke CSV
+├ /voucher \\- Kelola voucher
+├ /broadcast \\[msg\\] \\- Kirim ke semua user
+└ /users \\- Daftar customer
+
+🚀 *Mini App Admin:*
+Buka Mini App untuk dashboard lengkap dengan analytics, grafik, dan fitur advanced\\.
 
 Pilih menu di bawah:`;
 
+    // Buat keyboard dengan WebApp button di atas
+    const keyboard = new InlineKeyboard()
+        .webApp("🚀 Buka Mini App", webappUrl)
+        .row()
+        .text("📦 Produk", "admin:products")
+        .text("📊 Statistik", "admin:stats")
+        .row()
+        .text("📋 Order Terbaru", "admin:orders")
+        .text("🎟️ Voucher", "admin:vouchers")
+        .row()
+        .text("➕ Tambah Kategori", "admin:add_category")
+        .text("➕ Tambah Produk", "admin:add_product")
+        .row()
+        .text("📤 Tambah Stok", "admin:add_stock")
+        .text("👥 Users", "admin:users");
+
     await ctx.reply(adminHelp, {
-        parse_mode: "Markdown",
-        reply_markup: adminMenuKeyboard(),
+        parse_mode: "MarkdownV2",
+        reply_markup: keyboard,
     });
 }
 
