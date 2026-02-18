@@ -49,9 +49,9 @@ router.use(telegramAuthMiddleware);
  */
 router.get("/auth/verify", async (req, res) => {
     const user = req.telegramUser!;
-    
+
     await logActivity(user.id, user.username, "login");
-    
+
     res.json({
         success: true,
         user: {
@@ -99,7 +99,7 @@ router.get("/dashboard/sales", async (req, res) => {
     try {
         const days = parseInt(req.query.days as string) || 30;
         const sales = await getDailySales(days);
-        
+
         res.json({ success: true, data: sales });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
@@ -126,12 +126,12 @@ router.get("/dashboard/hourly", async (req, res) => {
 router.get("/products", async (req, res) => {
     try {
         const includeInactive = req.query.all === "true";
-        
+
         let query = supabase
             .from("products")
             .select("*")
             .order("created_at", { ascending: false });
-        
+
         if (!includeInactive) {
             query = query.eq("is_active", true);
         }
@@ -171,7 +171,7 @@ router.get("/products/categories", async (req, res) => {
 router.get("/products/category/:categoryId", async (req, res) => {
     try {
         const products = await getProductsByCategory(req.params.categoryId);
-        
+
         const productsWithStock = await Promise.all(
             products.map(async (product) => ({
                 ...product,
@@ -246,7 +246,7 @@ router.put("/products/:id", async (req, res) => {
     try {
         const user = req.telegramUser!;
         const { name, description, price, is_active, parent_id, pricing_tiers } = req.body;
-        
+
         const updates: any = {};
         if (name !== undefined) updates.name = name;
         if (description !== undefined) updates.description = description;
@@ -256,7 +256,7 @@ router.put("/products/:id", async (req, res) => {
         if (pricing_tiers !== undefined) updates.pricing_tiers = pricing_tiers;
 
         const product = await updateProduct(req.params.id, updates);
-        
+
         await logActivity(user.id, user.username, "product_update", "product", req.params.id, updates);
 
         res.json({ success: true, data: product });
@@ -271,7 +271,7 @@ router.put("/products/:id", async (req, res) => {
 router.delete("/products/:id", async (req, res) => {
     try {
         const user = req.telegramUser!;
-        
+
         await updateProduct(req.params.id, { is_active: false });
         await logActivity(user.id, user.username, "product_delete", "product", req.params.id);
 
@@ -289,7 +289,7 @@ router.delete("/products/:id", async (req, res) => {
 router.get("/products/:id/credentials", async (req, res) => {
     try {
         const showSold = req.query.sold === "true";
-        
+
         let query = supabase
             .from("credentials")
             .select("*")
@@ -334,8 +334,8 @@ router.post("/products/:id/credentials", async (req, res) => {
         const newCredentials = credentials.filter((c: any) => !existingEmails.has(c.email));
 
         if (newCredentials.length === 0) {
-            return res.status(400).json({ 
-                success: false, 
+            return res.status(400).json({
+                success: false,
                 error: "Semua credentials sudah ada (duplicate)",
                 duplicates: emails.length,
             });
@@ -363,8 +363,8 @@ router.post("/products/:id/credentials", async (req, res) => {
             duplicatesSkipped: credentials.length - newCredentials.length,
         });
 
-        res.status(201).json({ 
-            success: true, 
+        res.status(201).json({
+            success: true,
             data: data || [],
             added: data?.length || 0,
             duplicatesSkipped: credentials.length - newCredentials.length,
@@ -388,7 +388,7 @@ router.post("/products/:id/credentials/bulk", async (req, res) => {
 
         const delim = delimiter || "|";
         const lines = text.split("\n").filter((l: string) => l.trim());
-        
+
         const credentials = lines.map((line: string) => {
             const parts = line.split(delim).map((s: string) => s.trim());
             return {
@@ -415,8 +415,8 @@ router.post("/products/:id/credentials/bulk", async (req, res) => {
         const newCredentials = credentials.filter((c: any) => !existingEmails.has(c.email));
 
         if (newCredentials.length === 0) {
-            return res.status(400).json({ 
-                success: false, 
+            return res.status(400).json({
+                success: false,
                 error: "Semua credentials sudah ada (duplicate)",
             });
         }
@@ -438,8 +438,8 @@ router.post("/products/:id/credentials/bulk", async (req, res) => {
             count: data?.length || 0,
         });
 
-        res.status(201).json({ 
-            success: true, 
+        res.status(201).json({
+            success: true,
             added: data?.length || 0,
             duplicatesSkipped: credentials.length - newCredentials.length,
         });
@@ -523,7 +523,7 @@ router.get("/orders", async (req, res) => {
             .order("created_at", { ascending: false })
             .range(offset, offset + limit - 1);
 
-        if (status) query = query.eq("status", status);
+        if (status) query = query.eq("payment_status", status);
         if (userId) query = query.eq("telegram_user_id", parseInt(userId));
         if (dateFrom) query = query.gte("created_at", dateFrom);
         if (dateTo) query = query.lte("created_at", dateTo);
@@ -534,8 +534,8 @@ router.get("/orders", async (req, res) => {
         const { data, error, count } = await query;
         if (error) throw error;
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             data: data || [],
             total: count || 0,
             limit,
@@ -568,8 +568,8 @@ router.get("/orders/:id", async (req, res) => {
 
         await logActivity(user.id, user.username, "order_view", "order", req.params.id);
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             data: { ...order, credentials: credentials || [] },
         });
     } catch (error: any) {
@@ -591,7 +591,7 @@ router.get("/users", async (req, res) => {
         // Get unique users from orders with aggregated stats
         const { data: orders, error } = await supabase
             .from("orders")
-            .select("telegram_user_id, telegram_username, total_price, status, created_at");
+            .select("telegram_user_id, telegram_username, total_price, payment_status, created_at");
 
         if (error) throw error;
 
@@ -608,20 +608,20 @@ router.get("/users", async (req, res) => {
 
         for (const order of orders || []) {
             const existing = userMap.get(order.telegram_user_id);
-            
+
             if (!existing) {
                 userMap.set(order.telegram_user_id, {
                     user_id: order.telegram_user_id,
                     username: order.telegram_username,
                     total_orders: 1,
-                    paid_orders: order.status === "paid" ? 1 : 0,
-                    total_spent: order.status === "paid" ? order.total_price : 0,
+                    paid_orders: order.payment_status === "paid" ? 1 : 0,
+                    total_spent: order.payment_status === "paid" ? order.total_price : 0,
                     first_order: order.created_at,
                     last_order: order.created_at,
                 });
             } else {
                 existing.total_orders++;
-                if (order.status === "paid") {
+                if (order.payment_status === "paid") {
                     existing.paid_orders++;
                     existing.total_spent += order.total_price;
                 }
@@ -636,7 +636,7 @@ router.get("/users", async (req, res) => {
         // Filter by search
         if (search) {
             const searchLower = search.toLowerCase();
-            users = users.filter(u => 
+            users = users.filter(u =>
                 u.username?.toLowerCase().includes(searchLower) ||
                 u.user_id.toString().includes(search)
             );
@@ -686,7 +686,7 @@ router.get("/users/:id", async (req, res) => {
             .single();
 
         // Calculate stats
-        const paidOrders = (orders || []).filter(o => o.status === "paid");
+        const paidOrders = (orders || []).filter(o => o.payment_status === "paid");
         const stats = {
             total_orders: orders?.length || 0,
             paid_orders: paidOrders.length,
@@ -719,7 +719,7 @@ router.get("/analytics/top-products", async (req, res) => {
     try {
         const limit = parseInt(req.query.limit as string) || 10;
         const topProducts = await getTopProducts(limit);
-        
+
         res.json({ success: true, data: topProducts });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
@@ -733,7 +733,7 @@ router.get("/analytics/top-buyers", async (req, res) => {
     try {
         const limit = parseInt(req.query.limit as string) || 10;
         const topBuyers = await getTopBuyers(limit);
-        
+
         res.json({ success: true, data: topBuyers });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
@@ -748,12 +748,12 @@ router.get("/analytics/top-buyers", async (req, res) => {
 router.get("/activity-logs", async (req, res) => {
     try {
         const { getActivityLogs } = await import("../../services/activity-log.js");
-        
+
         const limit = parseInt(req.query.limit as string) || 50;
         const offset = parseInt(req.query.offset as string) || 0;
 
         const result = await getActivityLogs(limit, offset);
-        
+
         res.json({
             success: true,
             data: result.logs,
@@ -795,9 +795,9 @@ router.post("/vouchers", async (req, res) => {
         const { code, discount_type, discount_value, min_order, max_uses, expires_at } = req.body;
 
         if (!code || !discount_type || !discount_value) {
-            return res.status(400).json({ 
-                success: false, 
-                error: "Code, discount_type, and discount_value required" 
+            return res.status(400).json({
+                success: false,
+                error: "Code, discount_type, and discount_value required"
             });
         }
 
@@ -807,9 +807,9 @@ router.post("/vouchers", async (req, res) => {
                 code: code.toUpperCase(),
                 discount_type,
                 discount_value: parseInt(discount_value),
-                min_order: parseInt(min_order) || 0,
+                min_purchase: parseInt(min_order) || 0,
                 max_uses: max_uses ? parseInt(max_uses) : null,
-                expires_at: expires_at || null,
+                valid_until: expires_at || null,
                 is_active: true,
             })
             .select()
@@ -972,8 +972,8 @@ router.get("/export/credentials/:productId", async (req, res) => {
 
         await logActivity(user.id, user.username, "export_data", "product", req.params.productId);
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             data: lines.join("\n"),
             count: lines.length,
         });

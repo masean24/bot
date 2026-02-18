@@ -221,7 +221,7 @@ router.get("/orders", authMiddleware, async (req, res) => {
             .range(offset, offset + limit - 1);
 
         if (status) {
-            query = query.eq("status", status);
+            query = query.eq("payment_status", status);
         }
 
         const { data, error } = await query;

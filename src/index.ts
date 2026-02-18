@@ -31,6 +31,8 @@ import {
     handlePaySaldo,
     handleInputVoucher,
     handleVoucherTextInput,
+    handleInputNotes,
+    handleNotesTextInput,
     setBotInstance,
 } from "./bot/handlers/order.js";
 import {
@@ -254,6 +256,7 @@ bot.callbackQuery(/^refreshorder:/, handleRefreshOrder);
 bot.callbackQuery(/^payqris:/, handlePayQris);
 bot.callbackQuery(/^paysaldo:/, handlePaySaldo);
 bot.callbackQuery(/^inputvoucher:/, handleInputVoucher);
+bot.callbackQuery(/^inputnotes:/, handleInputNotes);
 bot.callbackQuery(/^cancelqris:/, handleCancelQris);
 
 // Back to products - redirects to product list
@@ -348,6 +351,10 @@ bot.on("message:text", async (ctx, next) => {
     // Check for voucher input first
     const handledVoucher = await handleVoucherTextInput(ctx);
     if (handledVoucher) return;
+
+    // Check for notes input
+    const handledNotes = await handleNotesTextInput(ctx);
+    if (handledNotes) return;
 
     // Check for admin chat reply
     if (isAdmin(ctx.from?.id)) {

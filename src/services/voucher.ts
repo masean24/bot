@@ -5,11 +5,11 @@ export interface Voucher {
     code: string;
     discount_type: "percentage" | "fixed";
     discount_value: number;
-    min_order: number;
+    min_purchase: number;
     max_uses: number | null;
     used_count: number;
     is_active: boolean;
-    expires_at: string | null;
+    valid_until: string | null;
     created_at: string;
 }
 
@@ -45,7 +45,7 @@ export async function validateVoucher(
         return { valid: false, message: "Voucher sudah tidak aktif" };
     }
 
-    if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
+    if (voucher.valid_until && new Date(voucher.valid_until) < new Date()) {
         return { valid: false, message: "Voucher sudah expired" };
     }
 
@@ -53,10 +53,10 @@ export async function validateVoucher(
         return { valid: false, message: "Voucher sudah habis digunakan" };
     }
 
-    if (orderAmount < voucher.min_order) {
+    if (orderAmount < voucher.min_purchase) {
         return {
             valid: false,
-            message: `Minimal order Rp ${voucher.min_order.toLocaleString("id-ID")}`,
+            message: `Minimal order Rp ${voucher.min_purchase.toLocaleString("id-ID")}`,
         };
     }
 
@@ -87,9 +87,9 @@ export async function createVoucher(data: {
     code: string;
     discount_type: "percentage" | "fixed";
     discount_value: number;
-    min_order?: number;
+    min_purchase?: number;
     max_uses?: number;
-    expires_at?: string;
+    valid_until?: string;
 }): Promise<Voucher> {
     const { data: voucher, error } = await supabase
         .from("vouchers")
@@ -97,9 +97,9 @@ export async function createVoucher(data: {
             code: data.code.toUpperCase(),
             discount_type: data.discount_type,
             discount_value: data.discount_value,
-            min_order: data.min_order || 0,
+            min_purchase: data.min_purchase || 0,
             max_uses: data.max_uses || null,
-            expires_at: data.expires_at || null,
+            valid_until: data.valid_until || null,
         })
         .select()
         .single();

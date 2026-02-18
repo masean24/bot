@@ -80,7 +80,7 @@ export async function handleStart(ctx: Context): Promise<void> {
                     .from("orders")
                     .update({ referrer_id: referral.user_id })
                     .eq("telegram_user_id", userId)
-                    .eq("status", "pending");
+                    .eq("payment_status", "pending");
 
                 console.log(`[REFERRAL] User ${userId} referred by ${referral.user_id}`);
             }
@@ -111,7 +111,7 @@ export async function handleStart(ctx: Context): Promise<void> {
         .from("orders")
         .select("*", { count: "exact", head: true })
         .eq("telegram_user_id", userId)
-        .eq("status", "paid");
+        .eq("payment_status", "paid");
 
     // Get total users (unique telegram_user_ids)
     const { data: uniqueUsers } = await supabase
@@ -347,13 +347,13 @@ export async function handleCekSaldoButton(ctx: Context): Promise<void> {
         .from("orders")
         .select("*", { count: "exact", head: true })
         .eq("telegram_user_id", userId)
-        .eq("status", "paid");
+        .eq("payment_status", "paid");
 
     const { data: totalSpent } = await supabase
         .from("orders")
         .select("total_price")
         .eq("telegram_user_id", userId)
-        .eq("status", "paid");
+        .eq("payment_status", "paid");
 
     const total = totalSpent?.reduce((sum: number, o: { total_price: number }) => sum + o.total_price, 0) || 0;
 
@@ -395,9 +395,9 @@ export async function handleRiwayatOrderButton(ctx: Context): Promise<void> {
     let message = "📋 *Riwayat Order Terakhir*\n\n";
 
     for (const order of orders) {
-        const statusEmoji = order.status === "paid" ? "✅" :
-            order.status === "pending" ? "⏳" :
-                order.status === "expired" ? "⌛" : "❌";
+        const statusEmoji = order.payment_status === "paid" ? "✅" :
+            order.payment_status === "pending" ? "⏳" :
+                order.payment_status === "expired" ? "⌛" : "❌";
         const date = new Date(order.created_at).toLocaleDateString("id-ID");
         const productName = (order as any).products?.name || "Unknown";
 

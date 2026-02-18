@@ -56,7 +56,7 @@ export async function getDailySales(days: number = 30): Promise<DailySales[]> {
 
         // Group by date
         const salesByDate = new Map<string, { orders: number; revenue: number }>();
-        
+
         // Initialize all dates
         for (let i = 0; i <= days; i++) {
             const date = new Date();
@@ -100,12 +100,12 @@ export async function getTopProducts(limit: number = 10): Promise<TopProduct[]> 
 
         // Aggregate by product
         const productStats = new Map<string, { name: string; sold: number; revenue: number }>();
-        
+
         for (const order of data || []) {
-            const existing = productStats.get(order.product_id) || { 
-                name: (order.products as any)?.name || "Unknown", 
-                sold: 0, 
-                revenue: 0 
+            const existing = productStats.get(order.product_id) || {
+                name: (order.products as any)?.name || "Unknown",
+                sold: 0,
+                revenue: 0
             };
             productStats.set(order.product_id, {
                 name: existing.name,
@@ -144,12 +144,12 @@ export async function getTopBuyers(limit: number = 10): Promise<TopBuyer[]> {
 
         // Aggregate by user
         const userStats = new Map<number, { username: string | null; orders: number; spent: number }>();
-        
+
         for (const order of data || []) {
-            const existing = userStats.get(order.telegram_user_id) || { 
-                username: order.telegram_username, 
-                orders: 0, 
-                spent: 0 
+            const existing = userStats.get(order.telegram_user_id) || {
+                username: order.telegram_username,
+                orders: 0,
+                spent: 0
             };
             userStats.set(order.telegram_user_id, {
                 username: order.telegram_username || existing.username,
@@ -182,13 +182,13 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
         const now = new Date();
         const todayStart = new Date(now);
         todayStart.setHours(0, 0, 0, 0);
-        
+
         const weekStart = new Date(now);
         weekStart.setDate(weekStart.getDate() - 7);
-        
+
         const monthStart = new Date(now);
         monthStart.setMonth(monthStart.getMonth() - 1);
-        
+
         const prevMonthStart = new Date(monthStart);
         prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
 
@@ -233,11 +233,11 @@ export async function getAnalyticsSummary(): Promise<AnalyticsSummary> {
         }
 
         // Calculate growth
-        const ordersGrowth = prevMonth.orders > 0 
-            ? ((month.orders - prevMonth.orders) / prevMonth.orders) * 100 
+        const ordersGrowth = prevMonth.orders > 0
+            ? ((month.orders - prevMonth.orders) / prevMonth.orders) * 100
             : 0;
-        const revenueGrowth = prevMonth.revenue > 0 
-            ? ((month.revenue - prevMonth.revenue) / prevMonth.revenue) * 100 
+        const revenueGrowth = prevMonth.revenue > 0
+            ? ((month.revenue - prevMonth.revenue) / prevMonth.revenue) * 100
             : 0;
 
         return {
@@ -275,14 +275,14 @@ export async function getUserStats(): Promise<{
         const now = new Date();
         const todayStart = new Date(now);
         todayStart.setHours(0, 0, 0, 0);
-        
+
         const weekStart = new Date(now);
         weekStart.setDate(weekStart.getDate() - 7);
 
         // Get unique users from orders
         const { data: orders, error } = await supabase
             .from("orders")
-            .select("telegram_user_id, created_at, status");
+            .select("telegram_user_id, created_at, payment_status");
 
         if (error) throw error;
 
@@ -296,15 +296,15 @@ export async function getUserStats(): Promise<{
 
         for (const order of orders || []) {
             allUsers.add(order.telegram_user_id);
-            
+
             const orderDate = new Date(order.created_at);
             const existingFirst = userFirstOrder.get(order.telegram_user_id);
-            
+
             if (!existingFirst || orderDate < existingFirst) {
                 userFirstOrder.set(order.telegram_user_id, orderDate);
             }
 
-            if (order.status === "paid") {
+            if (order.payment_status === "paid") {
                 activeUsers.add(order.telegram_user_id);
             }
         }

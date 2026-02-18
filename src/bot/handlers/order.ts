@@ -25,7 +25,12 @@ import {
     formatCredential,
     generateOrderNumber,
 } from "../utils.js";
-import { TESTIMONY_CHANNEL_ID, LOG_CHANNEL_ID } from "../../config.js";
+import { TESTIMONY_CHANNEL_ID, LOG_CHANNEL_ID, NOTES_CHANNEL_ID } from "../../config.js";
+import { supabase } from "../../services/supabase.js";
+
+// State for notes input (similar to voucher)
+const notesInputState = new Map<number, { productId: string; quantity: number; voucherCode?: string }>();
+const userNotes = new Map<number, string>();
 import type { Bot } from "grammy";
 
 // Store bot instance for sending messages from webhook
@@ -329,7 +334,8 @@ async function showOrderConfirmation(
     ctx: Context,
     productId: string,
     quantity: number,
-    voucherCode?: string
+    voucherCode?: string,
+    notes?: string
 ): Promise<void> {
     const product = await getProductById(productId);
     if (!product) return;
@@ -368,6 +374,14 @@ async function showOrderConfirmation(
 
     const finalPrice = totalPrice - discountAmount;
 
+    // Store/retrieve notes in state
+    const userId = ctx.from?.id;
+    if (notes && userId) {
+        userNotes.set(userId, notes);
+    }
+    const currentNotes = userId ? userNotes.get(userId) : undefined;
+    const notesDisplay = currentNotes && currentNotes !== "-" ? `\n📝 Catatan: ${currentNotes}` : "";
+
     const message = `🛒 *KONFIRMASI PESANAN*
 
 ▸ Produk: ${product.name}
@@ -376,7 +390,7 @@ async function showOrderConfirmation(
 
 ▸ Jumlah: x${quantity}
 ▸ Subtotal: ${formatRupiah(totalPrice)}
-${voucherInfo ? voucherInfo + "\n" : ""}▸ Total Bayar: ${formatRupiah(finalPrice)}
+${voucherInfo ? voucherInfo + "\n" : ""}▸ Total Bayar: ${formatRupiah(finalPrice)}${notesDisplay}
 
 ⏱ ${now} WIB`;
 
@@ -391,8 +405,9 @@ ${voucherInfo ? voucherInfo + "\n" : ""}▸ Total Bayar: ${formatRupiah(finalPri
         .text("- 10", `subqty:${productId}:${quantity}:10${voucherParam}`)
         .text("- 100", `subqty:${productId}:${quantity}:100${voucherParam}`)
         .row()
-        .text("🔄 Refresh Stok", `refreshorder:${productId}:${quantity}${voucherParam}`)
+        .text("🔄 Refresh", `refreshorder:${productId}:${quantity}${voucherParam}`)
         .text("🎟️ Voucher", `inputvoucher:${productId}:${quantity}`)
+        .text("📝 Notes", `inputnotes:${productId}:${quantity}${voucherParam}`)
         .row()
         .text("💳 BAYAR QRIS", `payqris:${productId}:${quantity}${voucherParam}`)
         .text("💰 BAYAR SALDO", `paysaldo:${productId}:${quantity}${voucherParam}`)
@@ -520,6 +535,68 @@ export async function handleVoucherTextInput(ctx: Context): Promise<boolean> {
 }
 
 /**
+ * Handle notes input button - prompt user for notes
+ */
+export async function handleInputNotes(ctx: Context): Promise<void> {
+    await ctx.answerCallbackQuery();
+
+    const data = ctx.callbackQuery?.data;
+    if (!data) return;
+
+    const parts = data.split(":");
+    const productId = parts[1];
+    const qty = parseInt(parts[2]);
+    const voucherCode = parts[3];
+
+    const userId = ctx.from?.id;
+    if (userId) {
+        notesInputState.set(userId, { productId, quantity: qty, voucherCode });
+    }
+
+    await ctx.reply(`📝 *Masukkan Catatan Pesanan*
+
+Ketik catatan untuk pesanan ini:
+\(Contoh: email recovery: xxx@gmail\.com\)
+
+Ketik "\-" jika tidak ada catatan
+Ketik "batal" untuk membatalkan\.`, {
+        parse_mode: "MarkdownV2",
+    });
+}
+
+/**
+ * Handle notes text input
+ */
+export async function handleNotesTextInput(ctx: Context): Promise<boolean> {
+    const userId = ctx.from?.id;
+    if (!userId) return false;
+
+    const state = notesInputState.get(userId);
+    if (!state) return false;
+
+    const text = ctx.message?.text?.trim();
+    if (!text) return false;
+
+    // Clear input state
+    notesInputState.delete(userId);
+
+    if (text.toLowerCase() === "batal") {
+        await showOrderConfirmation(ctx, state.productId, state.quantity, state.voucherCode);
+        return true;
+    }
+
+    // Store notes (or clear if "-")
+    if (text === "-") {
+        userNotes.delete(userId);
+    } else {
+        userNotes.set(userId, text);
+    }
+
+    await showOrderConfirmation(ctx, state.productId, state.quantity, state.voucherCode, text === "-" ? undefined : text);
+    return true;
+}
+
+/**
  * Handle pay QRIS button - create order and show QR
  */
 export async function handlePayQris(ctx: Context): Promise<void> {
@@ -532,6 +609,9 @@ export async function handlePayQris(ctx: Context): Promise<void> {
     const productId = parts[1];
     const quantity = parseInt(parts[2]);
     const voucherCode = parts[3]; // Optional voucher code
+
+    // Get notes from state
+    const orderNotes = ctx.from?.id ? userNotes.get(ctx.from.id) : undefined;
 
     const product = await getProductById(productId);
 
@@ -576,13 +656,21 @@ export async function handlePayQris(ctx: Context): Promise<void> {
         telegram_user_id: ctx.from!.id,
         telegram_username: ctx.from?.username || null,
         product_id: productId,
+        product_name: product.name,
         quantity,
         total_price: finalPrice, // Use discounted price
-        status: "pending",
+        payment_status: "pending",
         pakasir_order_id: orderId,
         qr_message_id: null,
         chat_id: ctx.chat!.id,
+        source: "bot",
+        voucher_code: voucherCode || null,
+        discount_amount: discountAmount,
+        notes: orderNotes || null,
     });
+
+    // Clear notes state
+    if (ctx.from?.id) userNotes.delete(ctx.from.id);
 
     // Create QRIS transaction with final price
     const qrisResult = await createTransaction(orderId, finalPrice, String(ctx.from!.id));
@@ -658,6 +746,9 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
     const voucherCode = parts[3]; // Optional voucher code
     const userId = ctx.from?.id;
 
+    // Get notes from state
+    const orderNotes = userId ? userNotes.get(userId) : undefined;
+
     if (!userId) {
         await ctx.reply("❌ User tidak ditemukan.");
         return;
@@ -718,13 +809,21 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
         telegram_user_id: userId,
         telegram_username: ctx.from?.username || null,
         product_id: productId,
+        product_name: product.name,
         quantity,
         total_price: finalPrice,
-        status: "paid", // Immediately paid since using balance
+        payment_status: "paid", // Immediately paid since using balance
         pakasir_order_id: orderId,
         qr_message_id: null,
         chat_id: ctx.chat!.id,
+        source: "bot",
+        voucher_code: voucherCode || null,
+        discount_amount: discountAmount,
+        notes: orderNotes || null,
     });
+
+    // Clear notes state
+    if (userId) userNotes.delete(userId);
 
     // Deduct balance
     const deductResult = await deductBalance(userId, finalPrice, order.id, `Pembelian ${product.name} x${quantity}`);
@@ -825,6 +924,7 @@ _Terima kasih telah berbelanja\\!_ 🙏
 ID: \`${orderId}\`
 User: @${ctx.from?.username || "Anonymous"}
 Total: ${formatRupiah(finalPrice)}
+📱 Sumber: Telegram Bot
 Metode: Saldo
 Date: ${now}
 
@@ -843,6 +943,39 @@ Status: ✅ Transaksi Sukses`;
             });
         } catch (e) {
             console.error("Failed to send testimony:", e);
+        }
+    }
+
+    // Save to transaction_proofs (sync with website)
+    try {
+        await supabase.from("transaction_proofs").insert({
+            caption: `✅ ${product.name} x${quantity} — ${formatRupiah(finalPrice)} (via Bot)`,
+            image_url: "",
+            is_visible: true,
+        });
+    } catch (e) {
+        console.error("Failed to insert transaction_proof:", e);
+    }
+
+    // Send notes to notes channel if present
+    if (NOTES_CHANNEL_ID && botInstance && order.notes && order.notes !== "-") {
+        const notesMsg = `📝 *CATATAN PESANAN*
+
+ID: \`${order.pakasir_order_id || order.id}\`
+Produk: ${product.name}
+User: @${ctx.from?.username || "Anonymous"}
+📱 Sumber: Telegram Bot
+Metode: Saldo
+
+Catatan:
+${order.notes}`;
+
+        try {
+            await botInstance.api.sendMessage(NOTES_CHANNEL_ID, notesMsg, {
+                parse_mode: "Markdown",
+            });
+        } catch (e) {
+            console.error("Failed to send notes:", e);
         }
     }
 }
@@ -885,12 +1018,14 @@ export async function handleQuantitySelect(ctx: Context): Promise<void> {
         telegram_user_id: ctx.from!.id,
         telegram_username: ctx.from?.username || null,
         product_id: productId,
+        product_name: product.name,
         quantity,
         total_price: totalPrice,
-        status: "pending",
+        payment_status: "pending",
         pakasir_order_id: orderId,
         qr_message_id: null,
         chat_id: ctx.chat!.id,
+        source: "bot",
     });
 
     const confirmMessage = `
@@ -1018,7 +1153,7 @@ export async function handleCancelOrder(ctx: Context): Promise<void> {
     const order = await getOrderById(orderId);
 
     if (order) {
-        await updateOrder(order.id, { status: "cancelled" });
+        await updateOrder(order.id, { payment_status: "cancelled" });
     }
 
     await ctx.editMessageText("❌ Pesanan dibatalkan.", {
@@ -1039,7 +1174,7 @@ export async function handleCancelQris(ctx: Context): Promise<void> {
     const order = await getOrderById(orderId);
 
     if (order) {
-        await updateOrder(order.id, { status: "cancelled" });
+        await updateOrder(order.id, { payment_status: "cancelled" });
     }
 
     // Delete the QR message
@@ -1181,6 +1316,7 @@ _Terima kasih telah berbelanja\\!_ 🙏
 ID: \`${orderId}\`
 User: @${order.telegram_username || "Anonymous"}
 Total: ${formatRupiah(order.total_price)}
+📱 Sumber: Telegram Bot
 Metode: QRIS
 Date: ${now}
 
@@ -1199,6 +1335,39 @@ Status: ✅ Transaksi Sukses`;
             });
         } catch (e) {
             console.error("Failed to send testimony:", e);
+        }
+    }
+
+    // Save to transaction_proofs (sync with website)
+    try {
+        await supabase.from("transaction_proofs").insert({
+            caption: `✅ ${product.name} x${order.quantity} — ${formatRupiah(order.total_price)} (via Bot)`,
+            image_url: "",
+            is_visible: true,
+        });
+    } catch (e) {
+        console.error("Failed to insert transaction_proof:", e);
+    }
+
+    // Send notes to notes channel if present
+    if (NOTES_CHANNEL_ID && botInstance && order.notes && order.notes !== "-") {
+        const notesMsg = `📝 *CATATAN PESANAN*
+
+ID: \`${order.pakasir_order_id || order.id}\`
+Produk: ${product.name}
+User: @${order.telegram_username || "Anonymous"}
+📱 Sumber: Telegram Bot
+Metode: QRIS
+
+Catatan:
+${order.notes}`;
+
+        try {
+            await botInstance.api.sendMessage(NOTES_CHANNEL_ID, notesMsg, {
+                parse_mode: "Markdown",
+            });
+        } catch (e) {
+            console.error("Failed to send notes:", e);
         }
     }
 

@@ -254,9 +254,9 @@ export async function updateOrder(
 
 export async function updateOrderStatus(
     id: string,
-    status: Order["status"]
+    status: Order["payment_status"]
 ): Promise<void> {
-    const updates: Partial<Order> = { status };
+    const updates: Partial<Order> = { payment_status: status };
     if (status === "paid") {
         updates.paid_at = new Date().toISOString();
     }
@@ -281,7 +281,7 @@ export async function getPendingOrders(): Promise<Order[]> {
     const { data, error } = await supabase
         .from("orders")
         .select("*")
-        .eq("status", "pending")
+        .eq("payment_status", "pending")
         .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -295,15 +295,15 @@ export async function getOrderStats(): Promise<{
 }> {
     const { data: orders, error } = await supabase
         .from("orders")
-        .select("status, total_price");
+        .select("payment_status, total_price");
 
     if (error) throw error;
 
     const totalOrders = orders?.length || 0;
-    const paidOrders = orders?.filter((o) => o.status === "paid").length || 0;
+    const paidOrders = orders?.filter((o) => o.payment_status === "paid").length || 0;
     const totalRevenue =
         orders
-            ?.filter((o) => o.status === "paid")
+            ?.filter((o) => o.payment_status === "paid")
             .reduce((sum, o) => sum + o.total_price, 0) || 0;
 
     return { totalOrders, paidOrders, totalRevenue };
@@ -320,7 +320,7 @@ export async function cleanupExpiredOrders(
     const { data: expiredOrders, error: fetchError } = await supabase
         .from("orders")
         .select("*")
-        .eq("status", "pending")
+        .eq("payment_status", "pending")
         .lt("created_at", cutoffTime);
 
     if (fetchError) throw fetchError;
@@ -334,7 +334,7 @@ export async function cleanupExpiredOrders(
     // Update status to expired
     const { error: updateError } = await supabase
         .from("orders")
-        .update({ status: "expired" })
+        .update({ payment_status: "expired" })
         .in("id", orderIds);
 
     if (updateError) throw updateError;

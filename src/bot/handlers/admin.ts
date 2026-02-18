@@ -456,11 +456,11 @@ export async function handleAdminOrders(ctx: Context): Promise<void> {
 
     for (const order of orders) {
         const statusEmoji =
-            order.status === "paid"
+            order.payment_status === "paid"
                 ? "✅"
-                : order.status === "pending"
+                : order.payment_status === "pending"
                     ? "⏳"
-                    : order.status === "expired"
+                    : order.payment_status === "expired"
                         ? "⌛"
                         : "❌";
 
@@ -962,7 +962,7 @@ export async function handleUsersCommand(ctx: Context): Promise<void> {
     // Get unique users with order count
     const { data: orders, error } = await supabase
         .from("orders")
-        .select("telegram_user_id, telegram_username, status, total_price");
+        .select("telegram_user_id, telegram_username, payment_status, total_price");
 
     if (error || !orders || orders.length === 0) {
         await ctx.reply("❌ Belum ada customer.");
@@ -988,7 +988,7 @@ export async function handleUsersCommand(ctx: Context): Promise<void> {
         };
 
         existing.totalOrders++;
-        if (o.status === "paid") {
+        if (o.payment_status === "paid") {
             existing.paidOrders++;
             existing.totalSpent += o.total_price || 0;
         }
@@ -1087,7 +1087,7 @@ Contoh:
                 code,
                 discount_type: discountType,
                 discount_value: discountValue,
-                min_order: minOrder,
+                min_purchase: minOrder,
                 max_uses: maxUses,
             });
 
@@ -1137,7 +1137,7 @@ export async function handleStatsDetailedCommand(ctx: Context): Promise<void> {
     const { data: orders } = await supabase
         .from("orders")
         .select("total_price, created_at, product_id")
-        .eq("status", "paid");
+        .eq("payment_status", "paid");
 
     if (!orders || orders.length === 0) {
         await ctx.reply("📊 Belum ada transaksi.");

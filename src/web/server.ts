@@ -874,8 +874,8 @@ app.get("/admin", (req, res) => {
                   <td>\${o.quantity}</td>
                   <td>\${formatRupiah(o.total_price)}</td>
                   <td>
-                    <span class="badge \${o.status === 'paid' ? 'badge-success' : o.status === 'pending' ? 'badge-warning' : 'badge-danger'}">
-                      \${o.status}
+                    <span class="badge \${o.payment_status === 'paid' ? 'badge-success' : o.payment_status === 'pending' ? 'badge-warning' : 'badge-danger'}">
+                      \${o.payment_status}
                     </span>
                   </td>
                   <td>\${new Date(o.created_at).toLocaleString('id-ID')}</td>
@@ -2222,7 +2222,7 @@ email2@test.com|pass456|-|-"></textarea>
                   </div>
                   <div class="list-item-right">
                     <div class="list-item-value">\${formatRupiah(o.total_price)}</div>
-                    <span class="badge \${o.status === 'paid' ? 'badge-success' : o.status === 'pending' ? 'badge-warning' : 'badge-danger'}">\${o.status}</span>
+                    <span class="badge \${o.payment_status === 'paid' ? 'badge-success' : o.payment_status === 'pending' ? 'badge-warning' : 'badge-danger'}">\${o.payment_status}</span>
                   </div>
                 </div>
               \`).join('') : '<div class="empty-state">Belum ada order</div>'}
@@ -2254,7 +2254,7 @@ email2@test.com|pass456|-|-"></textarea>
             </div>
             <div class="list-item-right">
               <div class="list-item-value">\${formatRupiah(o.total_price)}</div>
-              <span class="badge \${o.status === 'paid' ? 'badge-success' : o.status === 'pending' ? 'badge-warning' : 'badge-danger'}">\${o.status}</span>
+              <span class="badge \${o.payment_status === 'paid' ? 'badge-success' : o.payment_status === 'pending' ? 'badge-warning' : 'badge-danger'}">\${o.payment_status}</span>
             </div>
           </div>
         \`).join('') : '<div class="empty-state">Tidak ada order</div>';

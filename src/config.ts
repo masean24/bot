@@ -8,6 +8,7 @@ export const ADMIN_IDS = (process.env.ADMIN_IDS || "")
     .filter((id) => !isNaN(id));
 export const TESTIMONY_CHANNEL_ID = process.env.TESTIMONY_CHANNEL_ID || "";
 export const LOG_CHANNEL_ID = process.env.LOG_CHANNEL_ID || "";
+export const NOTES_CHANNEL_ID = process.env.NOTES_CHANNEL_ID || "";
 
 // Supabase
 export const SUPABASE_URL = process.env.SUPABASE_URL || "";

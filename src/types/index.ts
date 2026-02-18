@@ -29,12 +29,17 @@ export interface Order {
     telegram_user_id: number;
     telegram_username: string | null;
     product_id: string;
+    product_name?: string;
     quantity: number;
     total_price: number;
-    status: "pending" | "paid" | "expired" | "cancelled";
+    payment_status: "pending" | "paid" | "expired" | "cancelled";
     pakasir_order_id: string | null;
     qr_message_id: number | null;
     chat_id: number | null;
+    source?: "web" | "bot";
+    notes?: string | null;
+    voucher_code?: string | null;
+    discount_amount?: number;
     created_at: string;
     paid_at: string | null;
 }
