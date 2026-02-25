@@ -67,37 +67,6 @@ export async function handleStart(ctx: Context): Promise<void> {
         console.error("Failed to save bot user:", e);
     }
 
-    // Check for referral code in deep link (e.g. /start REF123ABC)
-    const startPayload = ctx.match as string | undefined;
-    if (startPayload && startPayload.startsWith("REF")) {
-        try {
-            const { getReferralByCode, getOrCreateReferral } = await import("../../services/referral.js");
-            const referral = await getReferralByCode(startPayload);
-
-            if (referral && referral.user_id !== userId) {
-                // Save referrer for this user (will be used when they order)
-                await supabase
-                    .from("orders")
-                    .update({ referrer_id: referral.user_id })
-                    .eq("telegram_user_id", userId)
-                    .eq("payment_status", "pending");
-
-                console.log(`[REFERRAL] User ${userId} referred by ${referral.user_id}`);
-            }
-        } catch (e) {
-            console.error("Referral processing error:", e);
-        }
-    }
-
-    // Get or create user's own referral code
-    let userReferralCode = "";
-    try {
-        const { getOrCreateReferral } = await import("../../services/referral.js");
-        const userReferral = await getOrCreateReferral(userId, username);
-        userReferralCode = userReferral.referral_code;
-    } catch (e) {
-        console.error("Failed to get/create referral:", e);
-    }
 
     // Debug logging
     console.log(`[DEBUG] User ID: ${userId}, Banner URL: ${WELCOME_BANNER_URL || "(empty)"}`);
@@ -130,7 +99,6 @@ export async function handleStart(ctx: Context): Promise<void> {
     });
 
     const botUsername = ctx.me?.username || "bot";
-    const referralLink = userReferralCode ? `https://t.me/${botUsername}?start=${userReferralCode}` : "";
 
     const welcomeCaption = `Halo ${firstName}! 👋
 Selamat datang di ${BOT_NAME}
@@ -186,46 +154,6 @@ ${currentDate}
     });
 }
 
-/**
- * Handle /referral command - show user's referral code and stats
- */
-export async function handleReferralCommand(ctx: Context): Promise<void> {
-    const userId = ctx.from?.id;
-    const username = ctx.from?.username || "anonymous";
-
-    if (!userId) {
-        await ctx.reply("❌ Error: User tidak ditemukan.");
-        return;
-    }
-
-    try {
-        const { getOrCreateReferral, getReferralStats } = await import("../../services/referral.js");
-        const referral = await getOrCreateReferral(userId, username);
-        const stats = await getReferralStats(userId);
-
-        const botUsername = ctx.me?.username || "bot";
-        const referralLink = `https://t.me/${botUsername}?start=${referral.referral_code}`;
-
-        await ctx.reply(`🎁 *Referral Program*
-
-📋 Kode Referral Kamu:
-\`${referral.referral_code}\`
-
-🔗 Link Referral:
-${referralLink}
-
-📊 Statistik:
-├ Total Referred: ${stats?.referred_count || 0} user
-└ Total Bonus: ${formatRupiah(stats?.total_bonus || 0)}
-
-💡 Bagikan link di atas ke teman kamu!
-Kamu dapat bonus 5% dari setiap transaksi teman yang kamu refer.`, {
-            parse_mode: "Markdown",
-        });
-    } catch (e) {
-        await ctx.reply("❌ Gagal mengambil data referral.");
-    }
-}
 
 /**
  * Handle "List Produk" reply keyboard button - show categories

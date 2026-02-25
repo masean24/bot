@@ -29,7 +29,7 @@ export const WELCOME_BANNER_URL = process.env.WELCOME_BANNER_URL || "";
 // Admin Web Authentication
 export const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
 export const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
-export const JWT_SECRET = process.env.JWT_SECRET || "auto-order-bot-secret-key-change-in-production";
+export const JWT_SECRET = process.env.JWT_SECRET || "";
 
 // Channel & Contact Info
 export const TESTIMONY_CHANNEL_USERNAME = process.env.TESTIMONY_CHANNEL_USERNAME || "";
@@ -44,6 +44,7 @@ export function validateConfig(): void {
         ["SUPABASE_ANON_KEY", SUPABASE_ANON_KEY],
         ["QRIS_API_KEY", QRIS_API_KEY],
         ["ADMIN_PASSWORD", ADMIN_PASSWORD],
+        ["JWT_SECRET", JWT_SECRET],
     ];
 
     const missing = required.filter(([, value]) => !value);

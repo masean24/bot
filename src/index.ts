@@ -11,7 +11,6 @@ import {
     handleCategoryPage,
     handleCekSaldoButton,
     handleRiwayatOrderButton,
-    handleReferralCommand,
     handleSaldo,
     handleTopup,
     handleRiwayat,
@@ -139,7 +138,7 @@ bot.command("voucher", handleVoucherCommand);
 bot.command("stats", handleStatsDetailedCommand);
 bot.command("export", handleExportCommand);
 bot.command("mt", handleMaintenanceCommand);
-bot.command("referral", handleReferralCommand);
+// referral command removed
 bot.command("produk", async (ctx) => handleListProdukButton(ctx));
 bot.command("bantuan", handleHelp);
 
@@ -211,7 +210,7 @@ bot.callbackQuery("menu:my_orders", async (ctx) => {
 });
 bot.callbackQuery("menu:referral", async (ctx) => {
     await ctx.answerCallbackQuery();
-    await handleReferralCommand(ctx);
+    await ctx.reply("Fitur referral sudah tidak tersedia.");
 });
 bot.callbackQuery("menu:saldo", async (ctx) => {
     await ctx.answerCallbackQuery();

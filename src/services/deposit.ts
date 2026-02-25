@@ -93,29 +93,15 @@ export async function addBalance(
     topupId?: string,
     description?: string
 ): Promise<number> {
-    // Get current balance
-    const current = await getBalance(userId);
-    const newBalance = current + amount;
-
-    // Update balance
-    const { error: updateError } = await supabase
-        .from("user_balances")
-        .upsert({
-            user_id: userId,
-            balance: newBalance,
-            updated_at: new Date().toISOString(),
-        });
-
-    if (updateError) throw updateError;
-
-    // Log transaction
-    await supabase.from("balance_transactions").insert({
-        user_id: userId,
-        amount: amount,
-        type: "topup",
-        description: description || `Topup saldo Rp ${amount.toLocaleString("id-ID")}`,
-        topup_id: topupId || null,
+    // Use atomic RPC to prevent race conditions
+    const { data: newBalance, error } = await supabase.rpc("add_user_balance", {
+        p_user_id: userId,
+        p_amount: amount,
+        p_topup_id: topupId || null,
+        p_description: description || `Topup saldo Rp ${amount.toLocaleString("id-ID")}`,
     });
+
+    if (error) throw error;
 
     console.log(`[DEPOSIT] Added ${amount} to user ${userId}. New balance: ${newBalance}`);
     return newBalance;
@@ -130,40 +116,28 @@ export async function deductBalance(
     orderId: string,
     description?: string
 ): Promise<{ success: boolean; newBalance: number; error?: string }> {
-    const current = await getBalance(userId);
+    // Use atomic RPC to prevent race conditions (FOR UPDATE lock)
+    const { data, error } = await supabase.rpc("deduct_user_balance", {
+        p_user_id: userId,
+        p_amount: amount,
+        p_order_id: orderId,
+        p_description: description || `Pembayaran order`,
+    });
 
-    if (current < amount) {
+    if (error) throw error;
+
+    const result = Array.isArray(data) ? data[0] : data;
+
+    if (!result || !result.success) {
         return {
             success: false,
-            newBalance: current,
-            error: `Saldo tidak cukup. Saldo: Rp ${current.toLocaleString("id-ID")}, Dibutuhkan: Rp ${amount.toLocaleString("id-ID")}`,
+            newBalance: result?.new_balance || 0,
+            error: result?.error_message || "Gagal mengurangi saldo",
         };
     }
 
-    const newBalance = current - amount;
-
-    // Update balance
-    const { error: updateError } = await supabase
-        .from("user_balances")
-        .update({
-            balance: newBalance,
-            updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
-
-    if (updateError) throw updateError;
-
-    // Log transaction
-    await supabase.from("balance_transactions").insert({
-        user_id: userId,
-        amount: -amount,
-        type: "payment",
-        description: description || `Pembayaran order`,
-        order_id: orderId,
-    });
-
-    console.log(`[DEPOSIT] Deducted ${amount} from user ${userId}. New balance: ${newBalance}`);
-    return { success: true, newBalance };
+    console.log(`[DEPOSIT] Deducted ${amount} from user ${userId}. New balance: ${result.new_balance}`);
+    return { success: true, newBalance: result.new_balance };
 }
 
 /**
@@ -175,26 +149,15 @@ export async function refundBalance(
     orderId: string,
     description?: string
 ): Promise<number> {
-    const current = await getBalance(userId);
-    const newBalance = current + amount;
-
-    // Update balance
-    await supabase
-        .from("user_balances")
-        .update({
-            balance: newBalance,
-            updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId);
-
-    // Log transaction
-    await supabase.from("balance_transactions").insert({
-        user_id: userId,
-        amount: amount,
-        type: "refund",
-        description: description || `Refund order`,
-        order_id: orderId,
+    // Use atomic RPC to prevent race conditions
+    const { data: newBalance, error } = await supabase.rpc("refund_user_balance", {
+        p_user_id: userId,
+        p_amount: amount,
+        p_order_id: orderId,
+        p_description: description || `Refund order`,
     });
+
+    if (error) throw error;
 
     console.log(`[DEPOSIT] Refunded ${amount} to user ${userId}. New balance: ${newBalance}`);
     return newBalance;

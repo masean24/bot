@@ -10,6 +10,7 @@ import {
     getOrderById,
     markCredentialsAsSold,
     getCredentialsByOrderId,
+    claimCredentials,
 } from "../../services/supabase.js";
 import {
     createTransaction,
@@ -839,12 +840,15 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
     // Delete the confirmation message
     await ctx.deleteMessage();
 
-    // Mark credentials as sold and get them
-    const credentialIds = availableCredentials.map((c) => c.id);
-    await markCredentialsAsSold(credentialIds, order.id);
+    // Atomically claim credentials (prevents double-sell)
+    const claimedCredentials = await claimCredentials(productId, order.id, quantity);
+
+    if (claimedCredentials.length < quantity) {
+        await ctx.reply("⚠️ Sebagian stok tidak tersedia. Hubungi admin untuk refund.");
+    }
 
     // Format credentials as inline list
-    let credentialsText = availableCredentials
+    let credentialsText = claimedCredentials
         .map((cred, idx) => formatCredential(cred, idx))
         .join("\n");
 
@@ -1212,13 +1216,12 @@ export async function processSuccessfulPayment(
     const product = await getProductById(order.product_id);
     if (!product) return;
 
-    // Get and mark credentials as sold
-    const credentials = await getAvailableCredentials(
+    // Atomically claim credentials (prevents double-sell)
+    const credentials = await claimCredentials(
         order.product_id,
+        order.id,
         order.quantity
     );
-    const credentialIds = credentials.map((c) => c.id);
-    await markCredentialsAsSold(credentialIds, order.id);
 
     // Check and notify if stock is low
     const remainingStock = await getProductStock(order.product_id);

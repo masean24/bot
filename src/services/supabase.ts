@@ -183,6 +183,44 @@ export async function markCredentialsAsSold(
     if (error) throw error;
 }
 
+/**
+ * Atomically claim credentials for an order using FOR UPDATE SKIP LOCKED.
+ * Prevents double-sell when multiple users pay for the same product concurrently.
+ */
+export async function claimCredentials(
+    productId: string,
+    orderId: string,
+    quantity: number
+): Promise<Credential[]> {
+    const claimed: Credential[] = [];
+
+    for (let i = 0; i < quantity; i++) {
+        const { data, error } = await supabase.rpc("claim_available_account", {
+            p_product_id: productId,
+            p_order_id: orderId,
+        });
+
+        if (error) {
+            console.error(`[CLAIM] RPC error on claim ${i + 1}/${quantity}:`, error);
+            break;
+        }
+
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row) break;
+
+        // Fetch full credential details for the claimed account
+        const { data: cred } = await supabase
+            .from("credentials")
+            .select("*")
+            .eq("id", row.account_id)
+            .single();
+
+        if (cred) claimed.push(cred);
+    }
+
+    return claimed;
+}
+
 export async function getCredentialsByOrderId(
     orderId: string
 ): Promise<Credential[]> {
