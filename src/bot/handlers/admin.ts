@@ -620,6 +620,20 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     is_category: true,
                 });
 
+                // Also create in the store's categories table for web storefront
+                try {
+                    const slug = state.data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                    const colors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#E91E63", "#00BCD4", "#FF5722"];
+                    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+                    await supabase.from("categories").insert({
+                        name: state.data.name,
+                        slug: slug,
+                        color: randomColor,
+                    });
+                } catch (catErr: any) {
+                    console.warn("[ADMIN] Failed to sync category to store:", catErr?.message);
+                }
+
                 adminState.delete(userId);
                 await ctx.reply(
                     `✅ Kategori berhasil dibuat!\n\n📁 ${product.name}\n📝 ${product.description}\n\nSekarang tambah produk di kategori ini via menu admin.`,
@@ -662,6 +676,25 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     parent_id: state.data.parentId || null, // Use parent from state
                     is_category: false, // This is a product, not category
                 });
+
+                // Link product to store's categories table via category_id
+                if (state.data.parentName) {
+                    try {
+                        const { data: storeCat } = await supabase
+                            .from("categories")
+                            .select("id")
+                            .eq("name", state.data.parentName)
+                            .maybeSingle();
+                        if (storeCat) {
+                            await supabase
+                                .from("products")
+                                .update({ category_id: storeCat.id })
+                                .eq("id", product.id);
+                        }
+                    } catch (catErr: any) {
+                        console.warn("[ADMIN] Failed to link product to store category:", catErr?.message);
+                    }
+                }
 
                 const parentInfo = state.data.parentName ? `\n📁 Kategori: ${state.data.parentName}` : "";
                 adminState.delete(userId);
