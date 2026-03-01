@@ -12,6 +12,7 @@ export async function getActiveProducts(): Promise<Product[]> {
         .from("products")
         .select("*")
         .eq("is_active", true)
+        .eq("is_category", false)
         .order("name");
 
     if (error) throw error;
@@ -31,13 +32,13 @@ export async function getCategories(): Promise<Product[]> {
     return data || [];
 }
 
-// Get parent products only (for backwards compatibility) - products with no parent_id
+// Get parent products only (categories) - used for selecting category when adding products
 export async function getParentProducts(): Promise<Product[]> {
     const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("is_active", true)
-        .is("parent_id", null)
+        .eq("is_category", true)
         .order("name");
 
     if (error) throw error;
