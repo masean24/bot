@@ -1,3 +1,12 @@
+// Category (from web categories table)
+export interface Category {
+    id: string;
+    name: string;
+    slug: string;
+    color: string;
+    created_at: string;
+}
+
 // Product
 export interface Product {
     id: string;
@@ -8,6 +17,7 @@ export interface Product {
     created_at: string;
     parent_id: string | null;
     is_category: boolean;
+    category_id: string | null;
 }
 
 // Credential for digital product

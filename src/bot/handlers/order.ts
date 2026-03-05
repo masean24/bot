@@ -49,9 +49,9 @@ export function getBotInstance(): Bot | null {
  * Handle category detail - show category info with products list
  */
 export async function handleCategoryDetail(ctx: Context, categoryId: string): Promise<void> {
-    const { getProductById, getProductsByCategory, getProductStock, getParentSoldCount } = await import("../../services/supabase.js");
+    const { getCategoryById, getProductsByCategory, getProductStock, getParentSoldCount } = await import("../../services/supabase.js");
 
-    const category = await getProductById(categoryId);
+    const category = await getCategoryById(categoryId);
     if (!category) {
         await ctx.reply("❌ Kategori tidak ditemukan.", {
             reply_markup: backToMainKeyboard(),
@@ -74,7 +74,6 @@ export async function handleCategoryDetail(ctx: Context, categoryId: string): Pr
     let message = `╭ - - - - - - - - - - - - - - - - - - - - - ╮\n`;
     message += `┊・ Kategori: ${category.name}\n`;
     message += `┊・ Stok Terjual: ${soldCount}\n`;
-    message += `┊・ Desk: ${category.description || "-"}\n`;
     message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n\n`;
 
     // Build keyboard with product buttons

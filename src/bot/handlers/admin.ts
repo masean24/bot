@@ -539,8 +539,8 @@ export async function handleSelectParentForProduct(ctx: Context): Promise<void> 
     if (!data) return;
 
     const parentId = data.replace("admin:selectparent:", "");
-    const { getProductById } = await import("../../services/supabase.js");
-    const parent = await getProductById(parentId);
+    const { getCategoryById } = await import("../../services/supabase.js");
+    const parent = await getCategoryById(parentId);
 
     if (!parent) {
         await ctx.answerCallbackQuery({ text: "Kategori tidak ditemukan", show_alert: true });
@@ -611,32 +611,22 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
             state.data.description = text;
 
             try {
-                const product = await createProduct({
-                    name: state.data.name,
-                    description: state.data.description,
-                    price: 1, // Dummy price (categories aren't sold directly)
-                    is_active: true,
-                    parent_id: null,
-                    is_category: true,
-                });
+                // Create in the categories table (shared with web)
+                const slug = state.data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+                const colors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#E91E63", "#00BCD4", "#FF5722"];
+                const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-                // Also create in the store's categories table for web storefront
-                try {
-                    const slug = state.data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-                    const colors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#E91E63", "#00BCD4", "#FF5722"];
-                    const randomColor = colors[Math.floor(Math.random() * colors.length)];
-                    await supabase.from("categories").insert({
-                        name: state.data.name,
-                        slug: slug,
-                        color: randomColor,
-                    });
-                } catch (catErr: any) {
-                    console.warn("[ADMIN] Failed to sync category to store:", catErr?.message);
-                }
+                const { data: newCat, error: catErr } = await supabase.from("categories").insert({
+                    name: state.data.name,
+                    slug: slug,
+                    color: randomColor,
+                }).select().single();
+
+                if (catErr) throw catErr;
 
                 adminState.delete(userId);
                 await ctx.reply(
-                    `✅ Kategori berhasil dibuat!\n\n📁 ${product.name}\n📝 ${product.description}\n\nSekarang tambah produk di kategori ini via menu admin.`,
+                    `✅ Kategori berhasil dibuat!\n\n📁 ${newCat.name}\n\nSekarang tambah produk di kategori ini via menu admin.`,
                     { reply_markup: adminMenuKeyboard() }
                 );
             } catch (e: any) {
@@ -673,28 +663,10 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     description: state.data.description,
                     price: price,
                     is_active: true,
-                    parent_id: state.data.parentId || null, // Use parent from state
-                    is_category: false, // This is a product, not category
+                    parent_id: null,
+                    is_category: false,
+                    category_id: state.data.parentId || null,
                 });
-
-                // Link product to store's categories table via category_id
-                if (state.data.parentName) {
-                    try {
-                        const { data: storeCat } = await supabase
-                            .from("categories")
-                            .select("id")
-                            .eq("name", state.data.parentName)
-                            .maybeSingle();
-                        if (storeCat) {
-                            await supabase
-                                .from("products")
-                                .update({ category_id: storeCat.id })
-                                .eq("id", product.id);
-                        }
-                    } catch (catErr: any) {
-                        console.warn("[ADMIN] Failed to link product to store category:", catErr?.message);
-                    }
-                }
 
                 const parentInfo = state.data.parentName ? `\n📁 Kategori: ${state.data.parentName}` : "";
                 adminState.delete(userId);

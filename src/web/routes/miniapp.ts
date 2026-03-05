@@ -221,6 +221,7 @@ router.post("/products", async (req, res) => {
             is_active: is_active !== false,
             parent_id: parent_id || null,
             is_category: is_category || false,
+            category_id: req.body.category_id || null,
         });
 
         // Update pricing tiers if provided

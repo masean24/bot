@@ -110,6 +110,7 @@ router.post("/products", authMiddleware, async (req, res) => {
             is_active: is_active !== false,
             parent_id: null,
             is_category: false,
+            category_id: req.body.category_id || null,
         });
 
         res.status(201).json(product);

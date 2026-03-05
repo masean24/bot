@@ -1,9 +1,39 @@
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_SERVICE_KEY } from "../config.js";
-import type { Product, Credential, Order } from "../types/index.js";
+import type { Product, Category, Credential, Order } from "../types/index.js";
 
 // Use service key for full access
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+// ============ CATEGORIES ============
+
+// Get all categories from the categories table (shared with web)
+export async function getCategories(): Promise<Category[]> {
+    const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .order("name");
+
+    if (error) throw error;
+    return data || [];
+}
+
+// Get category by ID
+export async function getCategoryById(id: string): Promise<Category | null> {
+    const { data, error } = await supabase
+        .from("categories")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+    if (error) return null;
+    return data;
+}
+
+// Alias for admin flow
+export async function getParentProducts(): Promise<Category[]> {
+    return getCategories();
+}
 
 // ============ PRODUCTS ============
 
@@ -19,39 +49,13 @@ export async function getActiveProducts(): Promise<Product[]> {
     return data || [];
 }
 
-// Get categories only (is_category = true)
-export async function getCategories(): Promise<Product[]> {
-    const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("is_active", true)
-        .eq("is_category", true)
-        .order("name");
-
-    if (error) throw error;
-    return data || [];
-}
-
-// Get parent products only (categories) - used for selecting category when adding products
-export async function getParentProducts(): Promise<Product[]> {
-    const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("is_active", true)
-        .eq("is_category", true)
-        .order("name");
-
-    if (error) throw error;
-    return data || [];
-}
-
-// Get products under a category (parent_id = categoryId)
+// Get products under a category (category_id = categoryId)
 export async function getProductsByCategory(categoryId: string): Promise<Product[]> {
     const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("is_active", true)
-        .eq("parent_id", categoryId)
+        .eq("category_id", categoryId)
         .eq("is_category", false)
         .order("name");
 
@@ -59,15 +63,14 @@ export async function getProductsByCategory(categoryId: string): Promise<Product
     return data || [];
 }
 
-// Get variations for a parent product (legacy, same as getProductsByCategory)
+// Get variations for a parent product (legacy compatibility)
 export async function getVariationsByParent(parentId: string): Promise<Product[]> {
     return getProductsByCategory(parentId);
 }
 
-// Get total sold count for a parent (sum of all variations)
-export async function getParentSoldCount(parentId: string): Promise<number> {
-    // First get all variation IDs
-    const variations = await getVariationsByParent(parentId);
+// Get total sold count for a category (sum of all products)
+export async function getParentSoldCount(categoryId: string): Promise<number> {
+    const variations = await getProductsByCategory(categoryId);
     if (variations.length === 0) return 0;
 
     const variationIds = variations.map(v => v.id);
