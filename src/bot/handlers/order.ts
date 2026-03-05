@@ -26,7 +26,7 @@ import {
     formatCredential,
     generateOrderNumber,
 } from "../utils.js";
-import { TESTIMONY_CHANNEL_ID, LOG_CHANNEL_ID, NOTES_CHANNEL_ID } from "../../config.js";
+import { TESTIMONY_CHANNEL_ID, LOG_CHANNEL_ID, NOTES_CHANNEL_ID, TESTIMONY_TOPIC_ID, LOG_TOPIC_ID, NOTES_TOPIC_ID } from "../../config.js";
 import { supabase } from "../../services/supabase.js";
 
 // State for notes input (similar to voucher)
@@ -944,6 +944,7 @@ Status: ✅ Transaksi Sukses`;
             await botInstance.api.sendMessage(TESTIMONY_CHANNEL_ID, testimonyMessage, {
                 parse_mode: "Markdown",
                 reply_markup: testimonyKeyboard,
+                ...(TESTIMONY_TOPIC_ID ? { message_thread_id: TESTIMONY_TOPIC_ID } : {}),
             });
         } catch (e) {
             console.error("Failed to send testimony:", e);
@@ -977,6 +978,7 @@ ${order.notes}`;
         try {
             await botInstance.api.sendMessage(NOTES_CHANNEL_ID, notesMsg, {
                 parse_mode: "Markdown",
+                ...(NOTES_TOPIC_ID ? { message_thread_id: NOTES_TOPIC_ID } : {}),
             });
         } catch (e) {
             console.error("Failed to send notes:", e);
@@ -1335,6 +1337,7 @@ Status: ✅ Transaksi Sukses`;
             await botInstance.api.sendMessage(TESTIMONY_CHANNEL_ID, testimonyMessage, {
                 parse_mode: "Markdown",
                 reply_markup: testimonyKeyboard,
+                ...(TESTIMONY_TOPIC_ID ? { message_thread_id: TESTIMONY_TOPIC_ID } : {}),
             });
         } catch (e) {
             console.error("Failed to send testimony:", e);
@@ -1368,6 +1371,7 @@ ${order.notes}`;
         try {
             await botInstance.api.sendMessage(NOTES_CHANNEL_ID, notesMsg, {
                 parse_mode: "Markdown",
+                ...(NOTES_TOPIC_ID ? { message_thread_id: NOTES_TOPIC_ID } : {}),
             });
         } catch (e) {
             console.error("Failed to send notes:", e);
@@ -1402,7 +1406,9 @@ ${credentialsLog}
 ━━━━━━━━━━━━━━━━━━━━━`;
 
         try {
-            await botInstance.api.sendMessage(LOG_CHANNEL_ID, logMessage);
+            await botInstance.api.sendMessage(LOG_CHANNEL_ID, logMessage, {
+                ...(LOG_TOPIC_ID ? { message_thread_id: LOG_TOPIC_ID } : {}),
+            });
         } catch (e) {
             console.error("Failed to send to log channel:", e);
         }
