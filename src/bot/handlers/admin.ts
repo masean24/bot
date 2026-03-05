@@ -1,11 +1,18 @@
 import type { Context } from "grammy";
 import { InlineKeyboard } from "grammy";
+import type { Product } from "../../types/index.js";
 import { ADMIN_IDS } from "../../config.js";
 import {
     adminMenuKeyboard,
     formatRupiah,
     backToMainKeyboard,
 } from "../utils.js";
+
+function getEffectivePrice(product: Product): number {
+    return product.discount_price && product.discount_price < product.price
+        ? product.discount_price
+        : product.price;
+}
 import {
     getActiveProducts,
     getProductById,
@@ -183,7 +190,7 @@ export async function handleAdminProductDetail(ctx: Context): Promise<void> {
     const message = `📦 *${product.name}*
 
 📝 ${product.description || "-"}
-💰 Harga: ${formatRupiah(product.price)}
+💰 Harga: ${formatRupiah(getEffectivePrice(product))}
 📊 Stok: ${stock}
 📌 Status: ${product.is_active ? "Aktif" : "Nonaktif"}`;
 
@@ -662,6 +669,7 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                     name: state.data.name,
                     description: state.data.description,
                     price: price,
+                    discount_price: null,
                     is_active: true,
                     parent_id: null,
                     is_category: false,
@@ -671,7 +679,7 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
                 const parentInfo = state.data.parentName ? `\n📁 Kategori: ${state.data.parentName}` : "";
                 adminState.delete(userId);
                 await ctx.reply(
-                    `✅ Produk berhasil ditambahkan!\n\n📦 ${product.name}${parentInfo}\n💰 ${formatRupiah(product.price)}\n\nSekarang tambahkan stok via menu admin.`,
+                    `✅ Produk berhasil ditambahkan!\n\n📦 ${product.name}${parentInfo}\n💰 ${formatRupiah(getEffectivePrice(product))}\n\nSekarang tambahkan stok via menu admin.`,
                     { reply_markup: adminMenuKeyboard() }
                 );
             } catch (e) {

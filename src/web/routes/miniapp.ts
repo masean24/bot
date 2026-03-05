@@ -218,6 +218,7 @@ router.post("/products", async (req, res) => {
             name,
             description: description || "",
             price: parseInt(price) || 0,
+            discount_price: req.body.discount_price ? parseInt(req.body.discount_price) : null,
             is_active: is_active !== false,
             parent_id: parent_id || null,
             is_category: is_category || false,

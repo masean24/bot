@@ -107,6 +107,7 @@ router.post("/products", authMiddleware, async (req, res) => {
             name,
             description: description || "",
             price: parseInt(price),
+            discount_price: req.body.discount_price ? parseInt(req.body.discount_price) : null,
             is_active: is_active !== false,
             parent_id: null,
             is_category: false,

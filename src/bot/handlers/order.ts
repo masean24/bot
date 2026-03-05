@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import { InputFile, InlineKeyboard } from "grammy";
+import type { Product } from "../../types/index.js";
 import {
     getActiveProducts,
     getProductById,
@@ -27,6 +28,13 @@ import {
     generateOrderNumber,
 } from "../utils.js";
 import { TESTIMONY_CHANNEL_ID, LOG_CHANNEL_ID, NOTES_CHANNEL_ID, TESTIMONY_TOPIC_ID, LOG_TOPIC_ID, NOTES_TOPIC_ID } from "../../config.js";
+
+/** Get effective price: discount_price if set and lower than price, otherwise price */
+function getEffectivePrice(product: Product): number {
+    return product.discount_price && product.discount_price < product.price
+        ? product.discount_price
+        : product.price;
+}
 import { supabase } from "../../services/supabase.js";
 
 // State for notes input (similar to voucher)
@@ -91,7 +99,7 @@ export async function handleCategoryDetail(ctx: Context, categoryId: string): Pr
 
         for (const p of products) {
             const stock = await getProductStock(p.id);
-            message += `┊・ ${p.name}: ${formatRupiah(p.price)} - Stok: ${stock}\n`;
+            message += `┊・ ${p.name}: ${formatRupiah(getEffectivePrice(p))} - Stok: ${stock}\n`;
         }
 
         message += `╰ - - - - - - - - - - - - - - - - - - - - - ╯\n`;
@@ -174,7 +182,7 @@ export async function handleProductSelectByNumber(ctx: Context, productId: strin
 
 ╭ - - - - - - - - - - - - - - - - - - - - - ╮
 ┊ Harga & Stok:
-┊ ・ ${product.name} : ${formatRupiah(product.price)} - Stok ${stock}
+┊ ・ ${product.name} : ${formatRupiah(getEffectivePrice(product))} - Stok ${stock}
 ╰ - - - - - - - - - - - - - - - - - - - - - ╯
 ╰➤ Refresh at ${now} WIB`;
 
@@ -268,7 +276,7 @@ export async function handleProductSelect(ctx: Context): Promise<void> {
 
 ╭ - - - - - - - - - - - - - - - - - - - - - ╮
 ┊ Harga & Stok:
-┊ ・ ${product.name} : ${formatRupiah(product.price)} - Stok ${stock}
+┊ ・ ${product.name} : ${formatRupiah(getEffectivePrice(product))} - Stok ${stock}
 ╰ - - - - - - - - - - - - - - - - - - - - - ╯
 ╰➤ Refresh at ${now} WIB`;
 
@@ -350,7 +358,7 @@ async function showOrderConfirmation(
 
     // Ensure quantity is valid
     quantity = Math.max(1, Math.min(quantity, stock));
-    let totalPrice = product.price * quantity;
+    let totalPrice = getEffectivePrice(product) * quantity;
     let discountAmount = 0;
     let voucherInfo = "";
 
@@ -385,7 +393,7 @@ async function showOrderConfirmation(
     const message = `🛒 *KONFIRMASI PESANAN*
 
 ▸ Produk: ${product.name}
-▸ Harga: ${formatRupiah(product.price)}
+▸ Harga: ${formatRupiah(getEffectivePrice(product))}
 ▸ Stok: ${stock}
 
 ▸ Jumlah: x${quantity}
@@ -633,7 +641,7 @@ export async function handlePayQris(ctx: Context): Promise<void> {
         return;
     }
 
-    let totalPrice = product.price * quantity;
+    let totalPrice = getEffectivePrice(product) * quantity;
     let discountAmount = 0;
 
     // Apply voucher discount if provided
@@ -774,7 +782,7 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
         return;
     }
 
-    let totalPrice = product.price * quantity;
+    let totalPrice = getEffectivePrice(product) * quantity;
     let discountAmount = 0;
 
     // Apply voucher discount if provided
@@ -1015,7 +1023,7 @@ export async function handleQuantitySelect(ctx: Context): Promise<void> {
         return;
     }
 
-    const totalPrice = product.price * quantity;
+    const totalPrice = getEffectivePrice(product) * quantity;
 
     // Create order in database
     const orderId = generateOrderNumber();

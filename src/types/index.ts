@@ -13,6 +13,7 @@ export interface Product {
     name: string;
     description: string;
     price: number;
+    discount_price: number | null;
     is_active: boolean;
     created_at: string;
     parent_id: string | null;
