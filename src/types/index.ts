@@ -29,7 +29,7 @@ export interface Credential {
     password: string;
     pin: string | null;
     extra_info: string | null;
-    account_data: string | null;
+    account_data?: string | null;
     is_sold: boolean;
     sold_at: string | null;
     order_id: string | null;
