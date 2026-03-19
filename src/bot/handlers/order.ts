@@ -25,6 +25,7 @@ import {
     confirmOrderKeyboard,
     backToMainKeyboard,
     formatCredential,
+    parseAccountData,
     generateOrderNumber,
 } from "../utils.js";
 import { TESTIMONY_CHANNEL_ID, LOG_CHANNEL_ID, NOTES_CHANNEL_ID, TESTIMONY_TOPIC_ID, LOG_TOPIC_ID, NOTES_TOPIC_ID } from "../../config.js";
@@ -897,15 +898,18 @@ _Terima kasih telah berbelanja\\!_ 🙏
     txtContent += `Tanggal: ${new Date().toLocaleString("id-ID")}\n`;
     txtContent += `\n===== CREDENTIALS =====\n\n`;
 
-    availableCredentials.forEach((cred, idx) => {
+    claimedCredentials.forEach((cred, idx) => {
+        const parsed = (!cred.email && cred.account_data) ? parseAccountData(cred.account_data) : cred;
         txtContent += `--- Akun #${idx + 1} ---\n`;
-        txtContent += `Email: ${cred.email}\n`;
-        txtContent += `Password: ${cred.password}\n`;
-        if (cred.pin && cred.pin !== "-") {
-            txtContent += `PIN: ${cred.pin}\n`;
+        txtContent += `Email: ${parsed.email || cred.email || '-'}\n`;
+        txtContent += `Password: ${parsed.password || cred.password || '-'}\n`;
+        const pin = cred.pin || parsed.pin;
+        if (pin && pin !== "-") {
+            txtContent += `PIN: ${pin}\n`;
         }
-        if (cred.extra_info && cred.extra_info !== "-") {
-            txtContent += `Info: ${cred.extra_info}\n`;
+        const extra = cred.extra_info || parsed.extra_info;
+        if (extra && extra !== "-") {
+            txtContent += `Info: ${extra}\n`;
         }
         txtContent += `\n`;
     });
@@ -1290,14 +1294,17 @@ _Terima kasih telah berbelanja\\!_ 🙏
         txtContent += `\n===== CREDENTIALS =====\n\n`;
 
         credentials.forEach((cred, idx) => {
+            const parsed = (!cred.email && cred.account_data) ? parseAccountData(cred.account_data) : cred;
             txtContent += `--- Akun #${idx + 1} ---\n`;
-            txtContent += `Email: ${cred.email}\n`;
-            txtContent += `Password: ${cred.password}\n`;
-            if (cred.pin && cred.pin !== "-") {
-                txtContent += `PIN: ${cred.pin}\n`;
+            txtContent += `Email: ${parsed.email || cred.email || '-'}\n`;
+            txtContent += `Password: ${parsed.password || cred.password || '-'}\n`;
+            const pin = cred.pin || parsed.pin;
+            if (pin && pin !== "-") {
+                txtContent += `PIN: ${pin}\n`;
             }
-            if (cred.extra_info && cred.extra_info !== "-") {
-                txtContent += `Info: ${cred.extra_info}\n`;
+            const extra = cred.extra_info || parsed.extra_info;
+            if (extra && extra !== "-") {
+                txtContent += `Info: ${extra}\n`;
             }
             txtContent += `\n`;
         });

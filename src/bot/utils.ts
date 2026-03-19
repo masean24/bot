@@ -140,23 +140,58 @@ export function escapeMarkdown(text: string): string {
 }
 
 /**
- * Generate credential display text
+ * Parse account_data string into individual fields.
+ * Format: email|password or email|password|pin or email|password|pin|extra_info
  */
-export function formatCredential(credential: {
+export function parseAccountData(accountData: string | null | undefined): {
     email: string;
     password: string;
     pin: string | null;
     extra_info: string | null;
-}, index: number): string {
-    // Build credential string with pipe separators: email|password|pin|extra_info
-    let parts: string[] = [credential.email, credential.password];
+} {
+    if (!accountData) return { email: "", password: "", pin: null, extra_info: null };
+    const parts = accountData.split("|");
+    return {
+        email: parts[0] || "",
+        password: parts[1] || "",
+        pin: parts[2] || null,
+        extra_info: parts[3] || null,
+    };
+}
 
-    if (credential.pin && credential.pin !== "-") {
-        parts.push(credential.pin);
+/**
+ * Generate credential display text
+ */
+export function formatCredential(credential: {
+    email?: string | null;
+    password?: string | null;
+    pin?: string | null;
+    extra_info?: string | null;
+    account_data?: string | null;
+}, index: number): string {
+    // If email/password are null, parse from account_data (web admin only fills account_data)
+    let email = credential.email;
+    let password = credential.password;
+    let pin = credential.pin;
+    let extra_info = credential.extra_info;
+
+    if (!email && credential.account_data) {
+        const parsed = parseAccountData(credential.account_data);
+        email = parsed.email;
+        password = parsed.password;
+        pin = pin || parsed.pin;
+        extra_info = extra_info || parsed.extra_info;
     }
 
-    if (credential.extra_info && credential.extra_info !== "-") {
-        parts.push(credential.extra_info);
+    // Build credential string with pipe separators: email|password|pin|extra_info
+    let parts: string[] = [email || "", password || ""];
+
+    if (pin && pin !== "-") {
+        parts.push(pin);
+    }
+
+    if (extra_info && extra_info !== "-") {
+        parts.push(extra_info);
     }
 
     // Join with pipes and escape for MarkdownV2
