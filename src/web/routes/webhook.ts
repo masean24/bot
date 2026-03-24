@@ -37,6 +37,19 @@ router.post("/qris", async (req, res) => {
     try {
         console.log("Received QRIS webhook:", JSON.stringify(req.body));
 
+        // SECURITY: Verify webhook signature
+        const webhookSecret = process.env.QRIS_WEBHOOK_SECRET;
+        if (webhookSecret) {
+            const signature = (req.headers["x-webhook-signature"] || req.headers["x-webhook-secret"] || req.query.secret || "") as string;
+            if (signature !== webhookSecret) {
+                console.error("[webhook/qris] Invalid webhook signature");
+                return res.status(401).json({ error: "Invalid webhook signature" });
+            }
+            console.log("[webhook/qris] Webhook signature verified");
+        } else {
+            console.warn("[webhook/qris] QRIS_WEBHOOK_SECRET not configured — skipping verification");
+        }
+
         const { order_id, status, amount, message, transaction_id } = req.body;
 
         // Handle eanss.tech standard webhook format
@@ -204,6 +217,16 @@ router.post("/qris", async (req, res) => {
 router.post("/pakasir", async (req, res) => {
     try {
         console.log("Received Pakasir webhook (legacy):", JSON.stringify(req.body));
+
+        // SECURITY: Verify webhook signature
+        const webhookSecret = process.env.QRIS_WEBHOOK_SECRET;
+        if (webhookSecret) {
+            const signature = (req.headers["x-webhook-signature"] || req.headers["x-webhook-secret"] || req.query.secret || "") as string;
+            if (signature !== webhookSecret) {
+                console.error("[webhook/pakasir] Invalid webhook signature");
+                return res.status(401).json({ error: "Invalid webhook signature" });
+            }
+        }
 
         const { order_id, status, amount } = req.body;
 
