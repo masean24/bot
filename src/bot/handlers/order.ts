@@ -800,8 +800,8 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
 
     const finalPrice = totalPrice - discountAmount;
 
-    // Check and deduct balance
-    const { getBalance, deductBalance } = await import("../../services/deposit.js");
+    // Deduct balance FIRST (before creating order to ensure atomicity)
+    const { getBalance, deductBalance, refundBalance } = await import("../../services/deposit.js");
     const balance = await getBalance(userId);
 
     if (balance < finalPrice) {
@@ -812,8 +812,22 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
         return;
     }
 
-    // Create order in database
+    // Generate order ID first (needed for deductBalance reference)
     const orderId = generateOrderNumber();
+
+    // Deduct balance atomically
+    // Use a temporary order reference since the DB order doesn't exist yet
+    const deductResult = await deductBalance(userId, finalPrice, orderId, `Pembelian ${product.name} x${quantity}`);
+
+    if (!deductResult.success) {
+        await ctx.editMessageText(
+            `❌ ${deductResult.error}`,
+            { reply_markup: backToMainKeyboard() }
+        );
+        return;
+    }
+
+    // Balance deducted successfully — now create the order
     const order = await createOrder({
         telegram_user_id: userId,
         telegram_username: ctx.from?.username || null,
@@ -821,7 +835,7 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
         product_name: product.name,
         quantity,
         total_price: finalPrice,
-        payment_status: "paid", // Immediately paid since using balance
+        payment_status: "paid",
         pakasir_order_id: orderId,
         qr_message_id: null,
         chat_id: ctx.chat!.id,
@@ -834,17 +848,6 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
     // Clear notes state
     if (userId) userNotes.delete(userId);
 
-    // Deduct balance
-    const deductResult = await deductBalance(userId, finalPrice, order.id, `Pembelian ${product.name} x${quantity}`);
-
-    if (!deductResult.success) {
-        await ctx.editMessageText(
-            `❌ ${deductResult.error}`,
-            { reply_markup: backToMainKeyboard() }
-        );
-        return;
-    }
-
     // Delete the confirmation message
     await ctx.deleteMessage();
 
@@ -852,7 +855,16 @@ export async function handlePaySaldo(ctx: Context): Promise<void> {
     const claimedCredentials = await claimCredentials(productId, order.id, quantity);
 
     if (claimedCredentials.length < quantity) {
-        await ctx.reply("⚠️ Sebagian stok tidak tersedia. Hubungi admin untuk refund.");
+        // Refund for unclaimed items
+        const unclaimedCount = quantity - claimedCredentials.length;
+        const refundAmount = Math.round((finalPrice / quantity) * unclaimedCount);
+        try {
+            await refundBalance(userId, refundAmount, order.id, `Refund ${unclaimedCount}x ${product.name} (stok habis)`);
+            await ctx.reply(`⚠️ Hanya ${claimedCredentials.length}/${quantity} stok tersedia. Saldo Rp ${refundAmount.toLocaleString("id-ID")} sudah di-refund otomatis.`);
+        } catch (refundErr) {
+            console.error("[order] Auto-refund failed:", refundErr);
+            await ctx.reply("⚠️ Sebagian stok tidak tersedia. Hubungi admin untuk refund.");
+        }
     }
 
     // Format credentials as inline list
