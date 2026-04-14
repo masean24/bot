@@ -19,8 +19,9 @@ export async function createReplyKeyboard(productCount?: number): Promise<Keyboa
     // Get product count if not provided
     let count = productCount;
     if (count === undefined) {
-        const products = await getActiveProducts();
-        count = products.length;
+        const { getCategories } = await import("../../services/supabase.js");
+        const categories = await getCategories();
+        count = categories.length;
     }
 
     const keyboard = new Keyboard()
@@ -125,9 +126,10 @@ ${currentDate}
 ├ /produk - Cek produk
 └ /bantuan - Bantuan`;
 
-    // Get products for reply keyboard
-    const products = await getActiveProducts();
-    const replyKeyboard = await createReplyKeyboard(products.length);
+    // Get categories for reply keyboard
+    const { getCategories } = await import("../../services/supabase.js");
+    const categories = await getCategories();
+    const replyKeyboard = await createReplyKeyboard(categories.length);
 
     // Send welcome with banner image and inline menu
     if (WELCOME_BANNER_URL) {
