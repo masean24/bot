@@ -1466,39 +1466,3 @@ ${credentialsLog}
         }
     }
 }
-// Post to private log channel (admin documentation)
-if (LOG_CHANNEL_ID) {
-    // Format credentials for log
-    let credentialsLog = credentials.map((cred, idx) => {
-        let log = `├ Email: ${cred.email}\n├ Password: ${cred.password}`;
-        if (cred.pin && cred.pin !== "-") {
-            log += `\n├ PIN: ${cred.pin}`;
-        }
-        if (cred.extra_info && cred.extra_info !== "-") {
-            log += `\n├ Info: ${cred.extra_info}`;
-        }
-        return `Akun #${idx + 1}:\n${log}`;
-    }).join("\n\n");
-
-    const logMessage = `📋 ORDER LOG #${order.pakasir_order_id}
-
-👤 Buyer: @${order.telegram_username || "Anonymous"}
-📦 Produk: ${product.name}
-🔢 Jumlah: ${order.quantity}
-💰 Total: ${formatRupiah(order.total_price)}
-📅 Waktu: ${new Date().toLocaleString("id-ID")}
-
-🔐 Detail Akun:
-${credentialsLog}
-
-━━━━━━━━━━━━━━━━━━━━━`;
-
-    try {
-        await botInstance.api.sendMessage(LOG_CHANNEL_ID, logMessage, {
-            ...(LOG_TOPIC_ID ? { message_thread_id: LOG_TOPIC_ID } : {}),
-        });
-    } catch (e) {
-        console.error("Failed to send to log channel:", e);
-    }
-}
-}
