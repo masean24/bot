@@ -944,24 +944,28 @@ _Terima kasih telah berbelanja\\!_ 🙏
         });
 
         const orderId = order.pakasir_order_id || `ORD${Date.now()}`;
-        const botUsername = "hubifyid_bot";
+        const botUsername = process.env.BOT_USERNAME || "hubifyid_bot";
+
+        // Sanitize to prevent Markdown parse errors
+        const safeName = product.name.replace(/[*_`[\]]/g, "\\$&");
+        const safeUser = (ctx.from?.username || "Anonymous").replace(/[*_`[\]]/g, "\\$&");
 
         const testimonyMessage = `💰 *ORDER BERHASIL*
 
 ID: \`${orderId}\`
-User: @${ctx.from?.username || "Anonymous"}
+User: @${safeUser}
 Total: ${formatRupiah(finalPrice)}
 📱 Sumber: Telegram Bot
 Metode: Saldo
 Date: ${now}
 
 📊 *STATISTIK*
-Produk: ${product.name}
+Produk: ${safeName}
 Qty: ${quantity} pcs
 Status: ✅ Transaksi Sukses`;
 
         const testimonyKeyboard = new InlineKeyboard()
-            .url("🛒 Order", `https://t.me/${botUsername}`);
+            .url("🤖 Order via Bot", `https://t.me/${botUsername}`);
 
         try {
             await botInstance.api.sendMessage(TESTIMONY_CHANNEL_ID, testimonyMessage, {
@@ -970,20 +974,25 @@ Status: ✅ Transaksi Sukses`;
                 ...(TESTIMONY_TOPIC_ID ? { message_thread_id: TESTIMONY_TOPIC_ID } : {}),
             });
         } catch (e) {
-            console.error("Failed to send testimony:", e);
+            console.error("[testimony/saldo] Failed:", e);
+            // Retry tanpa Markdown kalau parse error
+            try {
+                await botInstance.api.sendMessage(
+                    TESTIMONY_CHANNEL_ID,
+                    testimonyMessage.replace(/[*_`]/g, ""),
+                    {
+                        reply_markup: testimonyKeyboard,
+                        ...(TESTIMONY_TOPIC_ID ? { message_thread_id: TESTIMONY_TOPIC_ID } : {}),
+                    }
+                );
+            } catch (e2) {
+                console.error("[testimony/saldo] Retry also failed:", e2);
+            }
         }
     }
 
-    // Save to transaction_proofs (sync with website)
-    try {
-        await supabase.from("transaction_proofs").insert({
-            caption: `✅ ${product.name} x${quantity} — ${formatRupiah(finalPrice)} (via Bot)`,
-            image_url: "",
-            is_visible: true,
-        });
-    } catch (e) {
-        console.error("Failed to insert transaction_proof:", e);
-    }
+    // Note: transaction_proofs adalah untuk screenshot manual.
+    // Order bot dicatat di tabel orders (auto logs).
 
     // Send notes to notes channel if present
     if (NOTES_CHANNEL_ID && botInstance && order.notes && order.notes !== "-") {
@@ -1330,7 +1339,7 @@ _Terima kasih telah berbelanja\\!_ 🙏
     }
 
     // Post to testimony channel
-    if (TESTIMONY_CHANNEL_ID) {
+    if (TESTIMONY_CHANNEL_ID && botInstance) {
         const now = new Date().toLocaleString("id-ID", {
             day: "2-digit",
             month: "short",
@@ -1340,24 +1349,36 @@ _Terima kasih telah berbelanja\\!_ 🙏
         });
 
         const orderId = order.pakasir_order_id || `ORD${Date.now()}`;
-        const botUsername = "hubifyid_bot";
+        const botUsername = process.env.BOT_USERNAME || "hubifyid_bot";
+        const webUrl = process.env.WEBSITE_URL || `https://t.me/${botUsername}`;
+
+        const isWebOrder = order.source === "web";
+        const sourceLabel = isWebOrder ? "🌐 Website" : "📱 Telegram Bot";
+        const metodeBayar = isWebOrder ? "QRIS (Web)" : "QRIS (Bot)";
+
+        // Sanitize to prevent Markdown parse errors
+        const safeName = product.name.replace(/[*_`[\]]/g, "\\$&");
+        const safeUser = (order.telegram_username || "Anonymous").replace(/[*_`[\]]/g, "\\$&");
 
         const testimonyMessage = `💰 *ORDER BERHASIL*
 
 ID: \`${orderId}\`
-User: @${order.telegram_username || "Anonymous"}
+User: @${safeUser}
 Total: ${formatRupiah(order.total_price)}
-📱 Sumber: Telegram Bot
-Metode: QRIS
+${sourceLabel}
+Metode: ${metodeBayar}
 Date: ${now}
 
 📊 *STATISTIK*
-Produk: ${product.name}
+Produk: ${safeName}
 Qty: ${order.quantity} pcs
 Status: ✅ Transaksi Sukses`;
 
         const testimonyKeyboard = new InlineKeyboard()
-            .url("🛒 Order", `https://t.me/${botUsername}`);
+            .url(
+                isWebOrder ? "🌐 Order via Web" : "🤖 Order via Bot",
+                isWebOrder ? webUrl : `https://t.me/${botUsername}`
+            );
 
         try {
             await botInstance.api.sendMessage(TESTIMONY_CHANNEL_ID, testimonyMessage, {
@@ -1366,20 +1387,25 @@ Status: ✅ Transaksi Sukses`;
                 ...(TESTIMONY_TOPIC_ID ? { message_thread_id: TESTIMONY_TOPIC_ID } : {}),
             });
         } catch (e) {
-            console.error("Failed to send testimony:", e);
+            console.error("[testimony/qris] Failed:", e);
+            // Retry tanpa Markdown kalau parse error
+            try {
+                await botInstance.api.sendMessage(
+                    TESTIMONY_CHANNEL_ID,
+                    testimonyMessage.replace(/[*_`]/g, ""),
+                    {
+                        reply_markup: testimonyKeyboard,
+                        ...(TESTIMONY_TOPIC_ID ? { message_thread_id: TESTIMONY_TOPIC_ID } : {}),
+                    }
+                );
+            } catch (e2) {
+                console.error("[testimony/qris] Retry also failed:", e2);
+            }
         }
     }
 
-    // Save to transaction_proofs (sync with website)
-    try {
-        await supabase.from("transaction_proofs").insert({
-            caption: `✅ ${product.name} x${order.quantity} — ${formatRupiah(order.total_price)} (via Bot)`,
-            image_url: "",
-            is_visible: true,
-        });
-    } catch (e) {
-        console.error("Failed to insert transaction_proof:", e);
-    }
+    // Note: transaction_proofs adalah untuk screenshot manual.
+    // Order bot dicatat di tabel orders (auto logs).
 
     // Send notes to notes channel if present
     if (NOTES_CHANNEL_ID && botInstance && order.notes && order.notes !== "-") {
@@ -1439,4 +1465,40 @@ ${credentialsLog}
             console.error("Failed to send to log channel:", e);
         }
     }
+}
+// Post to private log channel (admin documentation)
+if (LOG_CHANNEL_ID) {
+    // Format credentials for log
+    let credentialsLog = credentials.map((cred, idx) => {
+        let log = `├ Email: ${cred.email}\n├ Password: ${cred.password}`;
+        if (cred.pin && cred.pin !== "-") {
+            log += `\n├ PIN: ${cred.pin}`;
+        }
+        if (cred.extra_info && cred.extra_info !== "-") {
+            log += `\n├ Info: ${cred.extra_info}`;
+        }
+        return `Akun #${idx + 1}:\n${log}`;
+    }).join("\n\n");
+
+    const logMessage = `📋 ORDER LOG #${order.pakasir_order_id}
+
+👤 Buyer: @${order.telegram_username || "Anonymous"}
+📦 Produk: ${product.name}
+🔢 Jumlah: ${order.quantity}
+💰 Total: ${formatRupiah(order.total_price)}
+📅 Waktu: ${new Date().toLocaleString("id-ID")}
+
+🔐 Detail Akun:
+${credentialsLog}
+
+━━━━━━━━━━━━━━━━━━━━━`;
+
+    try {
+        await botInstance.api.sendMessage(LOG_CHANNEL_ID, logMessage, {
+            ...(LOG_TOPIC_ID ? { message_thread_id: LOG_TOPIC_ID } : {}),
+        });
+    } catch (e) {
+        console.error("Failed to send to log channel:", e);
+    }
+}
 }
