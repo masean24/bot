@@ -9,7 +9,8 @@ import type { QrisCreateResponse, QrisTransactionDetail } from "../types/index.j
 const QRIS_BASE_URL = "https://qris.hubify.store/api";
 
 // Template settings - check multiple locations for compatibility
-// Template is 1024x1024 px, white box is ~560x560 px centered
+// Template actual size: 1254x1254 px (display was 643px, scale=1.95x)
+// White box center in actual px: X≈595, Y≈811
 const TEMPLATE_PATHS = [
     path.join(process.cwd(), "assets", "qris-template.jpg"),        // Development
     path.join(process.cwd(), "dist", "assets", "qris-template.jpg"), // Production (Docker)
@@ -25,9 +26,9 @@ function getTemplatePath(): string | null {
     console.warn("QRIS template not found in any location:", TEMPLATE_PATHS);
     return null;
 }
-const QR_SIZE = 550; // QR code size in pixels (fits the white box)
-const QR_POSITION_X = 237; // X position for QR overlay (centered in white box)
-const QR_POSITION_Y = 237; // Y position for QR overlay (moved down)
+const QR_SIZE = 638;
+const QR_POSITION_X = 308; // center(620) - QR_SIZE/2(315)
+const QR_POSITION_Y = 420; // center(734) - QR_SIZE/2(315)
 
 /**
  * Create a new QRIS transaction via eanss.tech API

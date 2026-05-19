@@ -944,7 +944,7 @@ _Terima kasih telah berbelanja\\!_ 🙏
         });
 
         const orderId = order.pakasir_order_id || `ORD${Date.now()}`;
-        const botUsername = process.env.BOT_USERNAME || "hubifyid_bot";
+        const botUsername = process.env.BOT_USERNAME || "avorixid_bot";
 
         // Sanitize to prevent Markdown parse errors
         const safeName = product.name.replace(/[*_`[\]]/g, "\\$&");
@@ -1349,7 +1349,7 @@ _Terima kasih telah berbelanja\\!_ 🙏
         });
 
         const orderId = order.pakasir_order_id || `ORD${Date.now()}`;
-        const botUsername = process.env.BOT_USERNAME || "hubifyid_bot";
+        const botUsername = process.env.BOT_USERNAME || "avorixid_bot";
         const webUrl = process.env.WEBSITE_URL || `https://t.me/${botUsername}`;
 
         const isWebOrder = order.source === "web";
